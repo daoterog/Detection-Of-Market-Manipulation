@@ -24,13 +24,15 @@ def data_loading() -> dict:
     for filename in DATA_FILE_NAMES:
         transforms_dict = {}
 
-        if filename not in set(['gme_coefficients.xlsx', 'nok_coefficients.xlsx']):
-            for sheet_name in TRANS_SHEETS:
+        for sheet_name in TRANS_SHEETS:
 
+            if filename in set(['gme_coefficients.xlsx', 'nok_coefficients.xlsx']) and sheet_name == 'cwt':
+                pass
+            else:
                 coef_and_freq = pd.read_excel(os.path.join(DATA_FOLDER_PATH, filename), header=1)
 
                 if sheet_name != 'spectogram':
-                    coefficents = ['coef_' + str(i) for i in range(coef_and_freq.shape[1] - 1)]
+                    coefficents = ['coef_' + str(i + 1) for i in range(coef_and_freq.shape[1] - 1)]
                     frequencies = ['freq']
 
                     if sheet_name == 'cwt_gaussian':
@@ -41,7 +43,7 @@ def data_loading() -> dict:
 
                 transforms_dict[sheet_name] = coef_and_freq
 
-            stocks_dict[filename.split('_')[0]] = transforms_dict
+        stocks_dict[filename.split('_')[0]] = transforms_dict
 
     return stocks_dict
 
