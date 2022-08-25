@@ -3,10 +3,14 @@ Contains first functions used in the project.
 """
 
 import os
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from scipy.stats import norm
+from sklearn.utils import shuffle
 
 ROOT_FOLDER_PATH = os.path.dirname(os.getcwd())
 DATA_FOLDER_PATH = os.path.join(ROOT_FOLDER_PATH, "data")
@@ -134,7 +138,9 @@ def data_loading(sheet_name: str, energy_threshold: float) -> dict:
 
     stocks_features = {}
     for stock in stocks_dict.keys():
-        stocks_features[stock] = build_feature_matrix(stocks_dict[stock], energy_threshold)
+        stocks_features[stock] = build_feature_matrix(
+            stocks_dict[stock], energy_threshold
+        )
 
     return stocks_features
 
@@ -151,13 +157,13 @@ def color_plot(
     # Pivot the feature matrix in a way that the complex modulus are mapped to the frequencies in a
     # time coherent manner and sort according to the frequencies in descending fashion.
     abs_frequency_df = pd.DataFrame(
-        feature_matrix[:, [0, var_index]], columns=["frequency", 'complex_modulus']
+        feature_matrix[:, [0, var_index]], columns=["frequency", "complex_modulus"]
     )
     n_freq = abs_frequency_df.frequency.unique().shape[0]
     n_cols = int(abs_frequency_df.shape[0] / n_freq)
     abs_frequency_df["time_window"] = list(range(n_cols)) * n_freq
     abs_frequency_df = abs_frequency_df.pivot_table(
-        index="frequency", columns="time_window", values='complex_modulus'
+        index="frequency", columns="time_window", values="complex_modulus"
     )
     abs_frequency_df.sort_values(by="frequency", inplace=True, ascending=False)
 
@@ -171,3 +177,86 @@ def color_plot(
     ax.set_xticks(xticks, labels=xticks)
     ax.set_title(title)
     plt.show()
+
+
+def binary_search_percentile(
+    random_number: float,
+    lower_bound: float,
+    upper_bound: float,
+    tol: float,
+) -> float:
+
+    """Recieves a random number generated from a specific distribution and uses binary search to
+    find the percentile to which it corresponds.
+
+    Args:
+        random_number (float): random number generated from a specific distribution.
+        lower_bound (float): lower bound of the percentile search.
+        upper_bound (float): upper bound of the percentile search.
+        tol (float): tol of the percentile search.
+
+    Returns:
+        float: percentile of the random number."""
+
+    middle_percentile = (lower_bound + upper_bound) / 2
+    percentile_number = norm.ppf(middle_percentile, loc=0, scale=1)
+
+    if abs(random_number - percentile_number) < tol:
+        return middle_percentile
+    elif random_number > percentile_number:
+        return binary_search_percentile(
+            random_number, middle_percentile, upper_bound, tol
+        )
+    else:
+        return binary_search_percentile(
+            random_number, lower_bound, middle_percentile, tol
+        )
+
+
+def random_sampling(feature_matrix: np.ndarray, train_size: float):
+
+    """
+    Randomly samples data from the feature matrix.
+    """
+
+    # Get number of unique frequencies
+    num_freqs = np.unique(feature_matrix[:, 0]).shape[0]
+    stop_cut = feature_matrix.shape[0]
+    n_samples = int(stop_cut / num_freqs)
+    n_train = int(n_samples * train_size)
+
+    # Define list to store the samples
+    train_samples = []
+    test_samples = []
+
+    # Loop through all frequencies
+    for start_cut in range(0, stop_cut, n_samples):
+
+        # Cut and shuffle array
+        freq_array = feature_matrix[start_cut : start_cut + n_samples, :]
+        shuffled_array = shuffle(freq_array)
+
+        # Sanity check for correct sampling
+        assert np.unique(freq_array[:,0]).shape[0] == 1, "Frequencies are not unique"
+
+        # Generate list of random normal number with mean 0 and standard deviation 1
+        random_number_array = np.random.normal(0, 1, size=(n_train,))
+
+        # Find percentile for each random number
+        percentile_list = [
+            binary_search_percentile(random_number, 0.0, 1.0, 10e-3)
+            for _, random_number in enumerate(random_number_array)
+        ]
+
+        # Draw samples from the shuffled array according to the percentiles
+        for _, percentile in enumerate(percentile_list):
+            sample_index = int(percentile * shuffled_array.shape[0])
+            train_samples.append(shuffled_array[sample_index, :])
+            shuffled_array = np.delete(shuffled_array, sample_index, axis=0)
+
+        test_samples.append(shuffled_array)
+
+    train_array = np.vstack(train_samples)
+    test_array = np.vstack(test_samples)
+
+    return train_array, test_array
