@@ -77,7 +77,7 @@ def plot_target_classes(y_train: np.ndarray, y_test: np.ndarray, stock: str) -> 
     fig, (ax0, ax1, ax2) = plt.subplots(1, 3, figsize=(8, 4))
 
     width = 1
-    color = ["cornflowerblue", "forestgreen"]
+    color = ["cornflowerblue", "forestgreen", "maroon"]
 
     ax0.bar(target_classes, train_occurrences, color=color, width=width, align="center")
     ax0.set_title("Train Absolute\nOccurrences")
@@ -104,7 +104,7 @@ def plot_target_classes(y_train: np.ndarray, y_test: np.ndarray, stock: str) -> 
     plt.show()
 
 
-def plot3d_dataset(feature_matrix: np.ndarray, title: str, plot_against: str) -> None:
+def plot3d_dataset(feature_matrix: np.ndarray, title: str, plot_against: str, target_var: np.ndarray = None) -> None:
 
     """Generates seaborn pairplot from dataset."""
 
@@ -114,6 +114,9 @@ def plot3d_dataset(feature_matrix: np.ndarray, title: str, plot_against: str) ->
     elif plot_against == "target":
         var_index = -1
         var_name = "target"
+        if target_var is None:
+            raise ValueError("Target variable not specified")
+        feature_matrix = np.concatenate((feature_matrix, target_var.reshape(-1, 1)), axis=1)
     else:
         raise ValueError(
             "Invalid plot_against argument. Allowed values are 'modulus' or 'target'"

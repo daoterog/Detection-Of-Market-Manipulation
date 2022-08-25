@@ -214,6 +214,58 @@ def binary_search_percentile(
         )
 
 
+def sample_data(
+    feature_matrix: np.ndarray,
+    distribution: str,
+    train_size: float,
+) -> pd.DataFrame:
+
+    """Samples the data according to certain probability distribution.
+
+    Args:
+        feature_matrix (np.ndarray): dataset to sample from.
+        distribution (str): distribution to use to generate the random numbers.
+        train_size (float): size of the training set.
+
+    Returns:
+        (pd.DataFrame, pd.DataFrame): train and test datasets."""
+
+    shuffled_array = shuffle(feature_matrix)
+
+    n_iter = int(np.ceil(shuffled_array.shape[0] * train_size))
+
+    if distribution == "normal":
+        random_number_array = np.random.normal(0, 1, size=(n_iter,))
+    elif distribution == "negative_binomial":
+        random_number_array = np.random.negative_binomial(1, 0.1, size=(n_iter,))
+    elif distribution == "uniform":
+        percentile_list = np.random.uniform(0, 1, size=(n_iter,))
+    else:
+        raise ValueError(
+            "Distribution not recognized. Available distributions are: normal, negative_binomial, uniform"
+        )
+
+    # Find percentile for each random number
+    if distribution == "normal" or distribution == "negative_binomial":
+        percentile_list = [
+            binary_search_percentile(random_number, distribution, 0.0, 1.0, 10e-3)
+            for _, random_number in enumerate(random_number_array)
+        ]
+
+    train_samples = []
+
+    # Draw samples from the shuffled array according to the percentiles
+    for _, percentile in enumerate(percentile_list):
+        sample_index = int(percentile * shuffled_array.shape[0])
+        train_samples.append(shuffled_array[sample_index, :])
+        shuffled_array = np.delete(shuffled_array, sample_index, axis=0)
+
+    train_array = np.vstack(train_samples)
+    test_array = shuffled_array
+
+    return train_array, test_array
+
+
 def random_sampling(
     feature_matrix: np.ndarray, train_size: float, distribution: str
 ) -> None:
@@ -226,7 +278,6 @@ def random_sampling(
     num_freqs = np.unique(feature_matrix[:, 0]).shape[0]
     stop_cut = feature_matrix.shape[0]
     n_samples = int(stop_cut / num_freqs)
-    n_train = int(n_samples * train_size)
 
     # Define list to store the samples
     train_samples = []
@@ -242,32 +293,11 @@ def random_sampling(
         # Sanity check for correct sampling
         assert np.unique(freq_array[:, 0]).shape[0] == 1, "Frequencies are not unique"
 
-        # Generate list of random numbers according to distribution
-        if distribution == "normal":
-            random_number_array = np.random.normal(0, 1, size=(n_train,))
-        elif distribution == "negative_binomial":
-            random_number_array = np.random.negative_binomial(1, 0.1, size=(n_train,))
-        elif distribution == "uniform":
-            percentile_list = np.random.uniform(0, 1, size=(n_train,))
-        else:
-            raise ValueError(
-                "Distribution not recognized. Available distributions are: normal, negative_binomial, uniform"
-            )
+        # Sample data
+        train_array, test_array = sample_data(shuffled_array, distribution, train_size)
 
-        # Find percentile for each random number
-        if distribution == "normal" or distribution == "negative_binomial":
-            percentile_list = [
-                binary_search_percentile(random_number, distribution, 0.0, 1.0, 10e-3)
-                for _, random_number in enumerate(random_number_array)
-            ]
-
-        # Draw samples from the shuffled array according to the percentiles
-        for _, percentile in enumerate(percentile_list):
-            sample_index = int(percentile * shuffled_array.shape[0])
-            train_samples.append(shuffled_array[sample_index, :])
-            shuffled_array = np.delete(shuffled_array, sample_index, axis=0)
-
-        test_samples.append(shuffled_array)
+        train_samples.append(train_array)
+        test_samples.append(test_array)
 
     train_array = np.vstack(train_samples)
     test_array = np.vstack(test_samples)
