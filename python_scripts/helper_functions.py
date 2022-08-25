@@ -6,8 +6,10 @@ import os
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+
 import seaborn as sns
+import plotly.express as px
+import matplotlib.pyplot as plt
 
 from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
@@ -118,9 +120,29 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
     )
 
     # Assign labels to samples according to a threshold
-    labels = feature_matrix[:, 4] > energy_threshold
-    labels = labels.astype(int)
-    feature_matrix = np.concatenate((feature_matrix, labels.reshape(-1, 1)), axis=1)
+    theshold_labels = feature_matrix[:, 4] > energy_threshold
+
+    # Filter samples with energy lower than cone of influence
+
+    # Standardize cone of influence for it to be suitable to compare with the frequencies
+    min_cone = cone_of_influence.min()
+    max_cone = cone_of_influence.max()
+    std_cone_of_influence = (cone_of_influence - min_cone) / (max_cone - min_cone)
+    min_freq = frequencies.min()
+    max_freq = frequencies.max()
+    std_cone_of_influence = std_cone_of_influence * (max_freq - min_freq) + min_freq
+
+    # Append repeated cone of influence to the feature matrix
+    n_freq = frequencies.shape[0]
+    repeated_cone_of_influence = np.array(std_cone_of_influence.tolist() * n_freq)
+
+    # Compare frequencies with stndardize cone to determine which samples are suitable for
+    # prediction
+    is_valid = feature_matrix[:, 0] > repeated_cone_of_influence
+    real_labels = theshold_labels & is_valid
+    is_valid = is_valid.reshape(-1, 1)
+    real_labels = real_labels.astype(int).reshape(-1, 1)
+    feature_matrix = np.concatenate((feature_matrix, is_valid, real_labels), axis=1)
 
     stock_features = {
         "feature_matrix": feature_matrix,
@@ -143,40 +165,6 @@ def data_loading(sheet_name: str, energy_threshold: float) -> dict:
         )
 
     return stocks_features
-
-
-def color_plot(
-    feature_matrix: np.ndarray,
-    var_index: int,
-    title: str,
-    ax: plt.Axes,
-) -> None:
-
-    """Makes color plot of the specified variable of the feature matrix."""
-
-    # Pivot the feature matrix in a way that the complex modulus are mapped to the frequencies in a
-    # time coherent manner and sort according to the frequencies in descending fashion.
-    abs_frequency_df = pd.DataFrame(
-        feature_matrix[:, [0, var_index]], columns=["frequency", "complex_modulus"]
-    )
-    n_freq = abs_frequency_df.frequency.unique().shape[0]
-    n_cols = int(abs_frequency_df.shape[0] / n_freq)
-    abs_frequency_df["time_window"] = list(range(n_cols)) * n_freq
-    abs_frequency_df = abs_frequency_df.pivot_table(
-        index="frequency", columns="time_window", values="complex_modulus"
-    )
-    abs_frequency_df.sort_values(by="frequency", inplace=True, ascending=False)
-
-    # Define xticks
-    min_window = abs_frequency_df.columns.min()
-    max_window = abs_frequency_df.columns.max()
-    xticks = np.arange(min_window, max_window + 1, 100)
-
-    # Plot
-    sns.heatmap(abs_frequency_df, cmap="viridis", vmin=-1, vmax=1, ax=ax)
-    ax.set_xticks(xticks, labels=xticks)
-    ax.set_title(title)
-    plt.show()
 
 
 def binary_search_percentile(
@@ -219,7 +207,9 @@ def binary_search_percentile(
         )
 
 
-def random_sampling(feature_matrix: np.ndarray, train_size: float, distribution: str) -> None:
+def random_sampling(
+    feature_matrix: np.ndarray, train_size: float, distribution: str
+) -> None:
 
     """
     Randomly samples data from the feature matrix.
@@ -243,15 +233,19 @@ def random_sampling(feature_matrix: np.ndarray, train_size: float, distribution:
         shuffled_array = shuffle(freq_array)
 
         # Sanity check for correct sampling
-        assert np.unique(freq_array[:,0]).shape[0] == 1, "Frequencies are not unique"
+        assert np.unique(freq_array[:, 0]).shape[0] == 1, "Frequencies are not unique"
 
         # Generate list of random numbers according to distribution
         if distribution == "normal":
             random_number_array = np.random.normal(0, 1, size=(n_train,))
         elif distribution == "negative_binomial":
             random_number_array = np.random.negative_binomial(1, 0.1, size=(n_train,))
-        else:
+        elif distribution == "uniform":
             percentile_list = np.random.uniform(0, 1, size=(n_train,))
+        else:
+            raise ValueError(
+                "Distribution not recognized. Available distributions are: normal, negative_binomial, uniform"
+            )
 
         # Find percentile for each random number
         if distribution == "normal" or distribution == "negative_binomial":
@@ -271,4 +265,10 @@ def random_sampling(feature_matrix: np.ndarray, train_size: float, distribution:
     train_array = np.vstack(train_samples)
     test_array = np.vstack(test_samples)
 
-    return train_array, test_array
+    X_train = train_array[:, :-1]
+    y_train = train_array[:, -1]
+
+    X_test = test_array[:, :-1]
+    y_test = test_array[:, -1]
+
+    return X_train, y_train, X_test, y_test
