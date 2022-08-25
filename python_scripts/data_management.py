@@ -10,6 +10,7 @@ import pandas as pd
 from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
 
+
 def load_excel_data(sheet_name: str) -> dict:
 
     """
@@ -54,7 +55,7 @@ def load_excel_data(sheet_name: str) -> dict:
 
                 coef_and_freq.columns = coefficents + frequencies
 
-            stocks_dict[filename.split('_')[0]] = coef_and_freq
+            stocks_dict[filename.split("_")[0]] = coef_and_freq
 
         manip_dict[cat_name] = stocks_dict
 
@@ -165,7 +166,9 @@ def data_loading(sheet_name: str, energy_threshold: float) -> dict:
     for manip_name, stock_dict in manip_dict.items():
         stock_features = {}
         for stock_name, stock_df in stock_dict.items():
-            stock_features[stock_name] = build_feature_matrix(stock_df, energy_threshold)
+            stock_features[stock_name] = build_feature_matrix(
+                stock_df, energy_threshold
+            )
         manip_features[manip_name] = stock_features
 
     return manip_features
@@ -276,3 +279,97 @@ def random_sampling(
     y_test = test_array[:, -1]
 
     return X_train, y_train, X_test, y_test
+
+
+def joint_random_sampling(manip_stock_dict: dict, train_size: float, distribution: str) -> tuple:
+
+    """Performs random sampling on the feature matrix of the manipulated stocks and then stacks them
+    together."""
+
+    # List to store sampled feature matrices
+    X_train_list = []
+    y_train_list = []
+    X_test_list = []
+    y_test_list = []
+
+    # Loop over stock dictionary
+    for _, stock_features in manip_stock_dict.items():
+
+        # Perform random sampling over specific stock and append the results to the list
+        stock_X_train, stock_y_train, stock_X_test_all, stock_y_test = random_sampling(
+            stock_features["feature_matrix"], train_size, distribution
+        )
+        X_train_list.append(stock_X_train)
+        y_train_list.append(stock_y_train)
+        X_test_list.append(stock_X_test_all)
+        y_test_list.append(stock_y_test)
+
+    # Stack the feature matrices
+    X_train_all = np.concatenate(X_train_list, axis=0)
+    y_train = np.concatenate(y_train_list, axis=0)
+    X_test_all = np.concatenate(X_test_list, axis=0)
+    y_test = np.concatenate(y_test_list, axis=0)
+
+    return X_train_all, y_train, X_test_all, y_test
+
+
+def evaluate_model(
+    model,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+) -> dict:
+
+    """Obtains train and test error for a given model."""
+
+    model.fit(X_train, y_train)
+
+    y_pred_train = model.predict(X_train)
+    y_pred_test = model.predict(X_test)
+
+    target_labels = np.unique(y_test)
+
+    labels_errors = {}
+
+    for label in target_labels:
+        train_label_indexes = np.where(y_train == label)
+        test_label_indexes = np.where(y_test == label)
+
+        train_label_error = 1 - np.mean(y_pred_train[train_label_indexes] == label)
+        test_label_error = 1 - np.mean(y_pred_test[test_label_indexes] == label)
+
+        labels_errors[label] = (train_label_error, test_label_error)
+
+    return labels_errors
+
+
+def evaluate_classifiers(
+    classifiers_dict: dict,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+) -> dict:
+
+    """Evaluates all classifiers in a dictionary."""
+
+    classifiers_errors = {}
+
+    for classifier_name, classifier in classifiers_dict.items():
+        classifiers_errors[classifier_name] = evaluate_model(
+            classifier, X_train, y_train, X_test, y_test
+        )
+
+        # Print results
+        label_one_errors = classifiers_errors[classifier_name][1]
+        label_zero_errors = classifiers_errors[classifier_name][0]
+        print(f"{classifier_name}")
+        print(
+            f"Label One: train error: {label_one_errors[0]}, test error: {label_one_errors[1]}"
+        )
+        print(
+            f"Label Zero: train error: {label_zero_errors[0]}, test error: {label_zero_errors[1]}"
+        )
+
+    return classifiers_errors
