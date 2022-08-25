@@ -10,11 +10,6 @@ import pandas as pd
 from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
 
-ROOT_FOLDER_PATH = os.path.dirname(os.getcwd())
-DATA_FOLDER_PATH = os.path.join(ROOT_FOLDER_PATH, "data")
-DATA_FILE_NAMES = os.listdir(DATA_FOLDER_PATH)
-
-
 def load_excel_data(sheet_name: str) -> dict:
 
     """
@@ -27,31 +22,43 @@ def load_excel_data(sheet_name: str) -> dict:
         dict: Dictionary with dataframes.
     """
 
-    stocks_dict = {}
+    root_folder_path = os.path.dirname(os.getcwd())
+    data_folder_path = os.path.join(root_folder_path, "data")
+    manip_category_names = os.listdir(data_folder_path)
 
-    for filename in DATA_FILE_NAMES:
+    manip_dict = {}
 
-        coef_and_freq = pd.read_excel(
-            os.path.join(DATA_FOLDER_PATH, filename),
-            sheet_name=sheet_name,
-            header=0,
-        )
+    for cat_name in manip_category_names:
 
-        if sheet_name != "spectogram":
-            coefficents = [
-                "coef_" + str(i + 1) for i in range(coef_and_freq.shape[1] - 1)
-            ]
-            frequencies = ["freq"]
+        cat_folder_path = os.path.join(data_folder_path, cat_name)
+        data_filenames = os.listdir(cat_folder_path)
+        stocks_dict = {}
 
-            if sheet_name == "cwt_gaussian":
-                coefficents = coefficents[:-1]
-                frequencies.append("scales")
+        for filename in data_filenames:
 
-            coef_and_freq.columns = coefficents + frequencies
+            coef_and_freq = pd.read_excel(
+                os.path.join(cat_folder_path, filename),
+                sheet_name=sheet_name,
+                header=0,
+            )
 
-        stocks_dict[filename.split("_")[0]] = coef_and_freq
+            if sheet_name != "spectogram":
+                coefficents = [
+                    "coef_" + str(i + 1) for i in range(coef_and_freq.shape[1] - 1)
+                ]
+                frequencies = ["freq"]
 
-    return stocks_dict
+                if sheet_name == "cwt_gaussian":
+                    coefficents = coefficents[:-1]
+                    frequencies.append("scales")
+
+                coef_and_freq.columns = coefficents + frequencies
+
+            stocks_dict[filename.split('_')[0]] = coef_and_freq
+
+        manip_dict[cat_name] = stocks_dict
+
+    return manip_dict
 
 
 def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dict:
@@ -152,15 +159,16 @@ def data_loading(sheet_name: str, energy_threshold: float) -> dict:
 
     """Loads the data."""
 
-    stocks_dict = load_excel_data(sheet_name)
+    manip_dict = load_excel_data(sheet_name)
 
-    stocks_features = {}
-    for stock in stocks_dict.keys():
-        stocks_features[stock] = build_feature_matrix(
-            stocks_dict[stock], energy_threshold
-        )
+    manip_features = {}
+    for manip_name, stock_dict in manip_dict.items():
+        stock_features = {}
+        for stock_name, stock_df in stock_dict.items():
+            stock_features[stock_name] = build_feature_matrix(stock_df, energy_threshold)
+        manip_features[manip_name] = stock_features
 
-    return stocks_features
+    return manip_features
 
 
 def binary_search_percentile(
