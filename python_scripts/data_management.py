@@ -7,10 +7,6 @@ import os
 import numpy as np
 import pandas as pd
 
-import seaborn as sns
-import plotly.express as px
-import matplotlib.pyplot as plt
-
 from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
 
