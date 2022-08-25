@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from scipy.stats import norm
+from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
 
 ROOT_FOLDER_PATH = os.path.dirname(os.getcwd())
@@ -181,6 +181,7 @@ def color_plot(
 
 def binary_search_percentile(
     random_number: float,
+    distribution: str,
     lower_bound: float,
     upper_bound: float,
     tol: float,
@@ -191,6 +192,7 @@ def binary_search_percentile(
 
     Args:
         random_number (float): random number generated from a specific distribution.
+        distribution (str): name of the used distribution.
         lower_bound (float): lower bound of the percentile search.
         upper_bound (float): upper bound of the percentile search.
         tol (float): tol of the percentile search.
@@ -199,21 +201,25 @@ def binary_search_percentile(
         float: percentile of the random number."""
 
     middle_percentile = (lower_bound + upper_bound) / 2
-    percentile_number = norm.ppf(middle_percentile, loc=0, scale=1)
+
+    if distribution == "normal":
+        percentile_number = norm.ppf(middle_percentile, loc=0, scale=1)
+    else:
+        percentile_number = nbinom.ppf(middle_percentile, n=1, p=0.1)
 
     if abs(random_number - percentile_number) < tol:
         return middle_percentile
     elif random_number > percentile_number:
         return binary_search_percentile(
-            random_number, middle_percentile, upper_bound, tol
+            random_number, distribution, middle_percentile, upper_bound, tol
         )
     else:
         return binary_search_percentile(
-            random_number, lower_bound, middle_percentile, tol
+            random_number, distribution, lower_bound, middle_percentile, tol
         )
 
 
-def random_sampling(feature_matrix: np.ndarray, train_size: float):
+def random_sampling(feature_matrix: np.ndarray, train_size: float, distribution: str) -> None:
 
     """
     Randomly samples data from the feature matrix.
@@ -239,14 +245,20 @@ def random_sampling(feature_matrix: np.ndarray, train_size: float):
         # Sanity check for correct sampling
         assert np.unique(freq_array[:,0]).shape[0] == 1, "Frequencies are not unique"
 
-        # Generate list of random normal number with mean 0 and standard deviation 1
-        random_number_array = np.random.normal(0, 1, size=(n_train,))
+        # Generate list of random numbers according to distribution
+        if distribution == "normal":
+            random_number_array = np.random.normal(0, 1, size=(n_train,))
+        elif distribution == "negative_binomial":
+            random_number_array = np.random.negative_binomial(1, 0.1, size=(n_train,))
+        else:
+            percentile_list = np.random.uniform(0, 1, size=(n_train,))
 
         # Find percentile for each random number
-        percentile_list = [
-            binary_search_percentile(random_number, 0.0, 1.0, 10e-3)
-            for _, random_number in enumerate(random_number_array)
-        ]
+        if distribution == "normal" or distribution == "negative_binomial":
+            percentile_list = [
+                binary_search_percentile(random_number, distribution, 0.0, 1.0, 10e-3)
+                for _, random_number in enumerate(random_number_array)
+            ]
 
         # Draw samples from the shuffled array according to the percentiles
         for _, percentile in enumerate(percentile_list):
