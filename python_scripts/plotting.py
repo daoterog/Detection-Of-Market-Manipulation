@@ -62,22 +62,23 @@ def color_plot(
     plt.show()
 
 
-def plot_target_classes(y_train: np.ndarray, y_test: np.ndarray, stock: str) -> None:
+def plot_target_classes(y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray, stock: str) -> None:
 
     """Plot target classes distribution"""
 
     target_classes, train_occurrences = np.unique(y_train, return_counts=True)
+    _, val_occurrences = np.unique(y_val, return_counts=True)
     _, test_occurrences = np.unique(y_test, return_counts=True)
-    total_occurrences = train_occurrences + test_occurrences
+    total_occurrences = train_occurrences + test_occurrences + val_occurrences
 
     assert (
         train_occurrences.shape[0] >= 2 and test_occurrences.shape[0] >= 2
     ), "Not enough target classes to plot"
 
-    fig, (ax0, ax1, ax2) = plt.subplots(1, 3, figsize=(8, 4))
+    fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(1, 5, figsize=(16, 4))
 
     width = 1
-    color = ["cornflowerblue", "forestgreen", "maroon"]
+    color = ["cornflowerblue", "forestgreen"]
 
     ax0.bar(target_classes, train_occurrences, color=color, width=width, align="center")
     ax0.set_title("Train Absolute\nOccurrences")
@@ -85,18 +86,29 @@ def plot_target_classes(y_train: np.ndarray, y_test: np.ndarray, stock: str) -> 
         1, train_occurrences[1], train_occurrences[1], ha="center", va="bottom", size=15
     )
 
-    ax1.bar(target_classes, test_occurrences, color=color, width=width)
-    ax1.set_title("Test Absolute\nOccurrences")
+    ax1.bar(target_classes, val_occurrences, color=color, width=width)
+    ax1.set_title("Validation Absolute\nOccurrences")
     ax1.text(
         1, test_occurrences[1], test_occurrences[1], ha="center", va="bottom", size=15
     )
 
-    ax2.bar(
+    ax2.bar(target_classes, test_occurrences, color=color, width=width)
+    ax2.set_title("Test Absolute\nOccurrences")
+    ax2.text(
+        1, test_occurrences[1], test_occurrences[1], ha="center", va="bottom", size=15
+    )
+
+    ax3.bar(
         target_classes, train_occurrences / total_occurrences, color=color, width=width
     )
-    ax2.set_title("Train Relative\nOccurrences")
+    ax3.set_title("Train Relative\nOccurrences")
 
-    for ax in (ax0, ax1, ax2):
+    ax4.bar(
+        target_classes, test_occurrences / total_occurrences, color=color, width=width
+    )
+    ax4.set_title("Train Relative\nOccurrences")
+
+    for ax in (ax0, ax1, ax2, ax3, ax4):
         ax.set_xticks(target_classes)
 
     fig.suptitle(stock)
