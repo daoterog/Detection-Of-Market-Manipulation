@@ -268,7 +268,7 @@ def sample_data(
 
 
 def random_sampling(
-    feature_matrix: np.ndarray, train_size: float, distribution: str
+    feature_matrix: np.ndarray, train_size: float, val_size: float, distribution: str
 ) -> None:
 
     """
@@ -282,6 +282,7 @@ def random_sampling(
 
     # Define list to store the samples
     train_samples = []
+    val_samples = []
     test_samples = []
 
     # Loop through all frequencies
@@ -294,26 +295,34 @@ def random_sampling(
         # Sanity check for correct sampling
         assert np.unique(freq_array[:, 0]).shape[0] == 1, "Frequencies are not unique"
 
-        # Sample data
+        # Sample train data
         train_array, test_array = sample_data(shuffled_array, distribution, train_size)
 
+        # Sample test data
+        val_array, test_array = sample_data(test_array, distribution, val_size)
+
         train_samples.append(train_array)
+        val_samples.append(val_array)
         test_samples.append(test_array)
 
     train_array = np.vstack(train_samples)
+    val_array = np.vstack(val_samples)
     test_array = np.vstack(test_samples)
 
     X_train = train_array[:, :-1]
     y_train = train_array[:, -1]
 
+    X_val = val_array[:, :-1]
+    y_val = val_array[:, -1]
+
     X_test = test_array[:, :-1]
     y_test = test_array[:, -1]
 
-    return X_train, y_train, X_test, y_test
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
 
 def joint_random_sampling(
-    manip_stock_dict: dict, train_size: float, distribution: str
+    manip_stock_dict: dict, train_size: float, val_size: float, distribution: str
 ) -> tuple:
 
     """Performs random sampling on the feature matrix of the manipulated stocks and then stacks them
@@ -322,6 +331,8 @@ def joint_random_sampling(
     # List to store sampled feature matrices
     X_train_list = []
     y_train_list = []
+    X_val_list = []
+    y_val_list = []
     X_test_list = []
     y_test_list = []
 
@@ -329,18 +340,27 @@ def joint_random_sampling(
     for _, stock_features in manip_stock_dict.items():
 
         # Perform random sampling over specific stock and append the results to the list
-        stock_X_train, stock_y_train, stock_X_test_all, stock_y_test = random_sampling(
-            stock_features["feature_matrix"], train_size, distribution
-        )
+        (
+            stock_X_train,
+            stock_y_train,
+            stock_X_val,
+            stock_y_val,
+            stock_X_test_all,
+            stock_y_test,
+        ) = random_sampling(stock_features["feature_matrix"], train_size, val_size, distribution)
         X_train_list.append(stock_X_train)
         y_train_list.append(stock_y_train)
+        X_val_list.append(stock_X_val)
+        y_val_list.append(stock_y_val)
         X_test_list.append(stock_X_test_all)
         y_test_list.append(stock_y_test)
 
     # Stack the feature matrices
     X_train_all = np.concatenate(X_train_list, axis=0)
     y_train = np.concatenate(y_train_list, axis=0)
+    X_val_all = np.concatenate(X_val_list, axis=0)
+    y_val = np.concatenate(y_val_list, axis=0)
     X_test_all = np.concatenate(X_test_list, axis=0)
     y_test = np.concatenate(y_test_list, axis=0)
 
-    return X_train_all, y_train, X_test_all, y_test
+    return X_train_all, y_train, X_val_all, y_val, X_test_all, y_test

@@ -2,10 +2,17 @@
 Model evaluation module.
 """
 
-import numpy as np
+import typing as t
 
+import numpy as np
 import operator as op
 from functools import reduce
+
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression
+
+from data_management import joint_random_sampling, random_sampling, sample_data
 
 
 def n_combined_r(n: int, r: int):
@@ -85,6 +92,37 @@ def get_number_of_samples(
     )
 
 
+def get_model(model_type: str, depth: int = None, pol_degree: int = None) -> tuple:
+
+    """Returns model given certain parameters and the hypothesis family to which it belongs."""
+
+    if model_type == "decision_tree":
+        if depth is None:
+            raise ValueError("Depth not specified.")
+        model = DecisionTreeClassifier(max_depth=depth)
+        hypothesis_family = "decision_tree"
+    elif model_type == "svm_linear":
+        model = SVC(kernel="linear")
+        hypothesis_family = "linear"
+    elif model_type == "svm_polynomial":
+        if pol_degree is None:
+            raise ValueError("Polynomial degree not specified.")
+        model = SVC(kernel="poly", degree=pol_degree)
+        hypothesis_family = "polynomial"
+    elif model_type == "svm_rbf":
+        model = SVC(kernel="rbf")
+        hypothesis_family = "rbf"
+    elif model_type == "logistic_regression":
+        model = LogisticRegression()
+        hypothesis_family = "linear"
+    else:
+        raise ValueError(
+            "Unknown model type. Available model types are decision_tree, svm_linear, svm_polynomial, svm_rbf, and logistic_regression."
+        )
+
+    return model, hypothesis_family
+
+
 def evaluate_model(
     model,
     X_train: np.ndarray,
@@ -150,5 +188,110 @@ def evaluate_classifiers(
         print(
             f"Label Zero: train error: {label_zero_errors[0]}, val error: {label_zero_errors[1]}, test error: {label_zero_errors[2]}"
         )
+
+    return classifiers_errors
+
+
+def get_sample_percentage(requiered_samples: int, available_samples: int) -> float:
+
+    """Returns trains percentage necesary to obtain n_samples (and satisfy PAG)."""
+
+    if requiered_samples == np.inf:
+        print("Infinite samples required, will return standard 60%.")
+        return 0.6
+    elif requiered_samples > available_samples:
+        print(
+            f"Required samples: {int(np.ceil(requiered_samples))}, available samples: {available_samples}."
+        )
+        print("Not enough samples available, will return standard 60%.")
+        return 0.6
+    elif requiered_samples > np.floor(available_samples * 0.6):
+        print(
+            f"Required samples: {int(np.ceil(requiered_samples))}, available samples: {available_samples}."
+        )
+        print("Required samples are greater than the 60%, will return standard 60%.")
+    else:
+        print(f"{requiered_samples *100 / available_samples}% are required.")
+        return requiered_samples / available_samples
+
+
+def evaluation_pipeline(
+    feature_matrix: t.Union[np.ndarray, dict],
+    model_type: str,
+    gen_error: float,
+    train_error: float,
+    sampling_mode: str,
+    distribution: str = "normal",
+    depth: int = None,
+    pol_degree: int = None,
+):
+
+    # Get model and hypothesis family
+    model, hypothesis_family = get_model(model_type, depth, pol_degree)
+
+    if sampling_mode == "joint":
+        available_samples = sum(
+            [
+                stock_dict["feature_matrix"].shape[0]
+                for stock_dict in feature_matrix.values()
+            ]
+        )
+        n_features = feature_matrix[list(feature_matrix.keys())[0]][
+            "feature_matrix"
+        ].shape[1]
+    elif sampling_mode == "independent":
+        available_samples = feature_matrix.shape[0]
+        n_features = feature_matrix.shape[1]
+    else:
+        raise ValueError(
+            "Unknown sampling mode. Available sampling modes are joint and independent."
+        )
+
+    # Get number of samples
+    required_samples = get_number_of_samples(
+        hypothesis_family,
+        n_features,
+        gen_error,
+        train_error,
+        pol_degree,
+        depth,
+    )
+
+    # Get percentage of samples
+    sample_percentage = get_sample_percentage(required_samples, available_samples)
+    val_percentage = 0.5
+
+    # Perform random sampling
+    if sampling_mode == "joint":
+        (
+            X_train_all,
+            y_train,
+            X_val_all,
+            y_val,
+            X_test_all,
+            y_test,
+        ) = joint_random_sampling(
+            feature_matrix, sample_percentage, val_percentage, distribution
+        )
+    else:
+        X_train_all, y_train, X_val_all, y_val, X_test_all, y_test = random_sampling(
+            feature_matrix, sample_percentage, val_percentage, distribution
+        )
+
+    print(f"{y_train.shape[0]} of the data are used for training.")
+    print(f"{y_val.shape[0]} of the data are used for validation.")
+    print(f"{y_test.shape[0]} of the data are used for testing.")
+
+    # Characteristics filtering
+    X_train = X_train_all[:, [0, 1, 2]]
+    X_val = X_val_all[:, [0, 1, 2]]
+    X_test = X_test_all[:, [0, 1, 2]]
+
+    # Evaluate model
+    classifiers_dict = {model_type: model}
+
+    classifiers_errors = evaluate_classifiers(
+        classifiers_dict, X_train, y_train, X_val, y_val, X_test, y_test
+    )
 
     return classifiers_errors
