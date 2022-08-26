@@ -12,7 +12,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 
-from data_management import joint_random_sampling, random_sampling, sample_data
+from data_management import joint_random_sampling, random_sampling
 
 
 def n_combined_r(n: int, r: int):
