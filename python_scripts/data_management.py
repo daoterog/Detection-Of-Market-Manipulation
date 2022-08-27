@@ -105,6 +105,11 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
     # Create feature matrix
     feature_matrix = np.stack(sample_list)
 
+    # Standardize frequency
+    freq_min = np.min(feature_matrix[:, 0])
+    freq_max = np.max(feature_matrix[:, 0])
+    feature_matrix[:, 0] = (feature_matrix[:, 0] - freq_min) / (freq_max - freq_min)
+
     # Get complex modulus and append it to the feature matrix
     real_power = np.power(feature_matrix[:, 1], 2)
     imag_power = np.power(feature_matrix[:, 2], 2)
@@ -132,9 +137,6 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
     min_cone = cone_of_influence.min()
     max_cone = cone_of_influence.max()
     std_cone_of_influence = (cone_of_influence - min_cone) / (max_cone - min_cone)
-    min_freq = frequencies.min()
-    max_freq = frequencies.max()
-    std_cone_of_influence = std_cone_of_influence * (max_freq - min_freq) + min_freq
 
     # Append repeated cone of influence to the feature matrix
     n_freq = frequencies.shape[0]

@@ -59,6 +59,7 @@ def color_plot(
     ax1.set_xticks(xticks, labels=xticks)
 
     fig.suptitle(title)
+    plt.tight_layout()
     plt.show()
 
 
