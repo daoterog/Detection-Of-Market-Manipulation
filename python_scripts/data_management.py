@@ -62,7 +62,7 @@ def load_excel_data(sheet_name: str) -> dict:
     return manip_dict
 
 
-def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dict:
+def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float, use_cone: bool) -> dict:
 
     """Rearanges coefficient values and maps them to its frequency."""
 
@@ -95,6 +95,7 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
         for j_time in range(real_coefficients.shape[1]):
             sample = np.array(
                 [
+                    j_time,
                     frequencies[i_freq],
                     real_coefficients[i_freq, j_time],
                     imag_coefficients[i_freq, j_time],
@@ -106,18 +107,23 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
     feature_matrix = np.stack(sample_list)
 
     # Standardize frequency
-    freq_min = np.min(feature_matrix[:, 0])
-    freq_max = np.max(feature_matrix[:, 0])
-    feature_matrix[:, 0] = (feature_matrix[:, 0] - freq_min) / (freq_max - freq_min)
+    freq_min = np.min(feature_matrix[:, 1])
+    freq_max = np.max(feature_matrix[:, 1])
+    feature_matrix[:, 1] = (feature_matrix[:, 1] - freq_min) / (freq_max - freq_min)
+
+    # Standardize Time
+    time_min = np.min(feature_matrix[:, 0])
+    time_max = np.max(feature_matrix[:, 0])
+    feature_matrix[:, 0] = (feature_matrix[:, 0] - time_min) / (time_max - time_min)
 
     # Get complex modulus and append it to the feature matrix
-    real_power = np.power(feature_matrix[:, 1], 2)
-    imag_power = np.power(feature_matrix[:, 2], 2)
+    real_power = np.power(feature_matrix[:, 2], 2)
+    imag_power = np.power(feature_matrix[:, 3], 2)
     complex_modulus = np.sqrt(real_power + imag_power).reshape(-1, 1)
     feature_matrix = np.concatenate((feature_matrix, complex_modulus), axis=1)
 
     # Standardize complex modulus and append it to the feature matrix
-    modulus_complex = feature_matrix[:, 3]
+    modulus_complex = feature_matrix[:, 4]
     min_modulus_complex = modulus_complex.min()
     max_modulus_complex = modulus_complex.max()
     std_modulus_complex = (modulus_complex - min_modulus_complex) / (
@@ -129,26 +135,30 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
     )
 
     # Assign labels to samples according to a threshold
-    theshold_labels = feature_matrix[:, 4] > energy_threshold
+    theshold_labels = feature_matrix[:, 5] > 2*energy_threshold - 1
 
     # Filter samples with energy lower than cone of influence
+    if use_cone:
+        # Standardize cone of influence for it to be suitable to compare with the frequencies
+        min_cone = cone_of_influence.min()
+        max_cone = cone_of_influence.max()
+        std_cone_of_influence = (cone_of_influence - min_cone) / (max_cone - min_cone)
 
-    # Standardize cone of influence for it to be suitable to compare with the frequencies
-    min_cone = cone_of_influence.min()
-    max_cone = cone_of_influence.max()
-    std_cone_of_influence = (cone_of_influence - min_cone) / (max_cone - min_cone)
+        # Append repeated cone of influence to the feature matrix
+        n_freq = frequencies.shape[0]
+        repeated_cone_of_influence = np.array(std_cone_of_influence.tolist() * n_freq)
 
-    # Append repeated cone of influence to the feature matrix
-    n_freq = frequencies.shape[0]
-    repeated_cone_of_influence = np.array(std_cone_of_influence.tolist() * n_freq)
-
-    # Compare frequencies with stndardize cone to determine which samples are suitable for
-    # prediction
-    is_valid = feature_matrix[:, 0] > repeated_cone_of_influence
-    real_labels = theshold_labels & is_valid
-    is_valid = is_valid.reshape(-1, 1)
-    real_labels = real_labels.astype(int).reshape(-1, 1)
-    feature_matrix = np.concatenate((feature_matrix, is_valid, real_labels), axis=1)
+        # Compare frequencies with stndardize cone to determine which samples are suitable for
+        # prediction
+        is_valid = feature_matrix[:, 1] > repeated_cone_of_influence
+        real_labels = theshold_labels & is_valid
+        is_valid = is_valid.reshape(-1, 1)
+        real_labels = real_labels.astype(int).reshape(-1, 1)
+        feature_matrix = np.concatenate((feature_matrix, is_valid, real_labels), axis=1)
+    else:
+        mask = np.ones(shape=(feature_matrix.shape[0], 1))
+        theshold_labels = theshold_labels.reshape(-1, 1)
+        feature_matrix = np.concatenate((feature_matrix, mask, theshold_labels), axis=1)
 
     stock_features = {
         "feature_matrix": feature_matrix,
@@ -158,7 +168,7 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float) -> dic
     return stock_features
 
 
-def data_loading(sheet_name: str, energy_threshold: float) -> dict:
+def data_loading(sheet_name: str, energy_threshold: float, use_cone: bool) -> dict:
 
     """Loads the data."""
 
@@ -169,7 +179,7 @@ def data_loading(sheet_name: str, energy_threshold: float) -> dict:
         stock_features = {}
         for stock_name, stock_df in stock_dict.items():
             stock_features[stock_name] = build_feature_matrix(
-                stock_df, energy_threshold
+                stock_df, energy_threshold, use_cone
             )
         manip_features[manip_name] = stock_features
 
