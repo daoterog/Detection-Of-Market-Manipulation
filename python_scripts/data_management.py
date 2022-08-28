@@ -288,7 +288,7 @@ def random_sampling(
     """
 
     # Get number of unique frequencies
-    num_freqs = np.unique(feature_matrix[:, 0]).shape[0]
+    num_freqs = np.unique(feature_matrix[:, 1]).shape[0]
     stop_cut = feature_matrix.shape[0]
     n_samples = int(stop_cut / num_freqs)
 
@@ -305,7 +305,7 @@ def random_sampling(
         shuffled_array = shuffle(freq_array)
 
         # Sanity check for correct sampling
-        assert np.unique(freq_array[:, 0]).shape[0] == 1, "Frequencies are not unique"
+        assert np.unique(freq_array[:, 1]).shape[0] == 1, "Frequencies are not unique"
 
         # Sample train data
         train_array, test_array = sample_data(shuffled_array, distribution, train_size)

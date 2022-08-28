@@ -5,6 +5,7 @@ Model evaluation module.
 import typing as t
 
 import numpy as np
+import pandas as pd
 import operator as op
 from functools import reduce
 
@@ -90,6 +91,39 @@ def get_number_of_samples(
     return number_of_samples(
         find_vc_dim(hypthesis_family, n_features, pol_degree), gen_error, train_error
     )
+
+
+def get_number_of_samples_table(gen_train_error_pair: list, n_features: int, depth: int = None, pol_degree: int = None):
+
+    """Returns a table with the number of samples needed to guarantee correct learning for a given
+    hypothesis family and number of features."""
+
+    table = []
+    table_columns = ['decision_tree', 'linear', 'polynomial', 'rbf', 'logistic_regression']
+    for gen_error, train_error in gen_train_error_pair:
+        table.append(
+            [
+                get_number_of_samples(
+                    "decision_tree", n_features, gen_error, train_error, depth=depth
+                ),
+                get_number_of_samples(
+                    "svm_linear", n_features, gen_error, train_error
+                ),
+                get_number_of_samples(
+                    "svm_polynomial", n_features, gen_error, train_error, pol_degree=pol_degree
+                ),
+                get_number_of_samples(
+                    "svm_rbf", n_features, gen_error, train_error
+                ),
+                get_number_of_samples(
+                    "logistic_regression", n_features, gen_error, train_error
+                ),
+            ]
+        )
+
+    table_dict = dict(zip(table_columns, table))
+    table_df = pd.DataFrame(table_dict, index=gen_train_error_pair)
+    return table_df
 
 
 def get_model(model_type: str, depth: int = None, pol_degree: int = None) -> tuple:
@@ -197,21 +231,21 @@ def get_sample_percentage(requiered_samples: int, available_samples: int) -> flo
     """Returns trains percentage necesary to obtain n_samples (and satisfy PAG)."""
 
     if requiered_samples == np.inf:
-        print("Infinite samples required, will return standard 60%.")
+        print("Infinite samples required, the training procedure is nnot adequate, however, will return standard 60$ for illustration purposes.")
         return 0.6
     elif requiered_samples > available_samples:
         print(
             f"Required samples: {int(np.ceil(requiered_samples))}, available samples: {available_samples}."
         )
-        print("Not enough samples available, will return standard 60%.")
+        print("Not enough samples available, the training procedure is not adequate, however, will return standard 60$ for illustration purposes")
         return 0.6
     elif requiered_samples > np.floor(available_samples * 0.6):
         print(
             f"Required samples: {int(np.ceil(requiered_samples))}, available samples: {available_samples}."
         )
-        print("Required samples are greater than the 60%, will return standard 60%.")
+        print("Required samples are greater than the 60%, the training procedure is nnot adequate, however, will return standard 60$ for illustration purposes.")
     else:
-        print(f"{requiered_samples *100 / available_samples}% are required.")
+        print(f"{requiered_samples *100 / available_samples}% are required. The training procedure is adequate.")
         return requiered_samples / available_samples
 
 
