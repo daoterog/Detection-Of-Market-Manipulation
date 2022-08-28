@@ -64,7 +64,7 @@ def find_vc_dim(hypthesis_family: str, n_features: int, pol_degree: int = None):
     elif hypthesis_family == "polynomial":
         if pol_degree is None:
             raise ValueError("Polynomial degree not specified.")
-        return n_combined_r(n_features + pol_degree - 1, pol_degree)
+        return n_combined_r(n_features + pol_degree - 1, pol_degree) + 1
     elif hypthesis_family == "rbf":
         return np.inf
     else:
@@ -187,6 +187,10 @@ def evaluate_model(
 
     model.fit(X_train, y_train)
 
+    n_train = X_train.shape[0]
+    n_val = X_val.shape[0]
+    n_test = X_test.shape[0]
+
     y_pred_train = model.predict(X_train)
     y_pred_val = model.predict(X_val)
     y_pred_test = model.predict(X_test)
@@ -196,15 +200,38 @@ def evaluate_model(
     labels_errors = {}
 
     for label in target_labels:
-        train_label_indexes = np.where(y_train == label)
-        val_label_indexes = np.where(y_val == label)
-        test_label_indexes = np.where(y_test == label)
 
-        train_label_error = 1 - np.mean(y_pred_train[train_label_indexes] == label)
-        val_label_error = 1 - np.mean(y_pred_val[val_label_indexes] == label)
-        test_label_error = 1 - np.mean(y_pred_test[test_label_indexes] == label)
+        # C_i
+        train_true = set(np.where(y_train == label)[0].tolist())
+        val_true = set(np.where(y_val == label)[0].tolist())
+        test_true = set(np.where(y_test == label)[0].tolist())
 
-        labels_errors[label] = (train_label_error, val_label_error, test_label_error)
+        # h_i
+        train_pred = set(np.where(y_pred_train == label)[0].tolist())
+        val_pred = set(np.where(y_pred_val == label)[0].tolist())
+        test_pred = set(np.where(y_pred_test == label)[0].tolist())
+
+        # C_i intersected h_i
+        train_true_pred_inters = train_true.intersection(train_pred)
+        val_true_pred_inters = val_true.intersection(val_pred)
+        test_true_pred_inters = test_true.intersection(test_pred)
+
+        # C_i union h_i
+        train_true_pred_union = train_true.union(train_pred)
+        val_true_pred_union = val_true.union(val_pred)
+        test_true_pred_union = test_true.union(test_pred)
+
+        # C_i union h_i - C_i intersected h_i
+        train_union_minus_intersection = train_true_pred_union.difference(train_true_pred_inters)
+        val_union_minus_intersection = val_true_pred_union.difference(val_true_pred_inters)
+        test_union_minus_intersection = test_true_pred_union.difference(test_true_pred_inters)
+
+        # Errors
+        train_error = len(train_union_minus_intersection) / n_train
+        val_error = len(val_union_minus_intersection) / n_val
+        test_error = len(test_union_minus_intersection) / n_test
+
+        labels_errors[label] = (train_error, val_error, test_error)
 
     return labels_errors
 
@@ -229,15 +256,9 @@ def evaluate_classifiers(
         )
 
         # Print results
-        label_one_errors = classifiers_errors[classifier_name][1]
-        label_zero_errors = classifiers_errors[classifier_name][0]
         print(f"{classifier_name}")
-        print(
-            f"Label One: train error: {label_one_errors[0]}, val error: {label_one_errors[1]}, test error: {label_one_errors[2]}"
-        )
-        print(
-            f"Label Zero: train error: {label_zero_errors[0]}, val error: {label_zero_errors[1]}, test error: {label_zero_errors[2]}"
-        )
+        for label, error in classifiers_errors[classifier_name].items():
+            print(f"Label {label} -> Train error {error[0]}, Val error {error[1]}, Test error {error[2]}")
 
     return classifiers_errors
 
@@ -275,6 +296,7 @@ def get_sample_percentage(requiered_samples: int, available_samples: int) -> flo
 
 def evaluation_pipeline(
     feature_matrix: t.Union[np.ndarray, dict],
+    n_features: int,
     model_type: str,
     gen_error: float,
     train_error: float,
@@ -294,12 +316,8 @@ def evaluation_pipeline(
                 for stock_dict in feature_matrix.values()
             ]
         )
-        n_features = feature_matrix[list(feature_matrix.keys())[0]][
-            "feature_matrix"
-        ].shape[1]
     elif sampling_mode == "independent":
         available_samples = feature_matrix.shape[0]
-        n_features = feature_matrix.shape[1]
     else:
         raise ValueError(
             "Unknown sampling mode. Available sampling modes are joint and independent."
@@ -341,9 +359,9 @@ def evaluation_pipeline(
     print(f"{y_test.shape[0]} of the data are used for testing.")
 
     # Characteristics filtering
-    X_train = X_train_all[:, [0, 1, 2]]
-    X_val = X_val_all[:, [0, 1, 2]]
-    X_test = X_test_all[:, [0, 1, 2]]
+    X_train = X_train_all[:, [1, 2, 3]]
+    X_val = X_val_all[:, [1, 2, 3]]
+    X_test = X_test_all[:, [1, 2, 3]]
 
     # Evaluate model
     classifiers_dict = {model_type: model}
