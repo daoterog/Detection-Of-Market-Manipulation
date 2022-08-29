@@ -287,6 +287,7 @@ def get_sample_percentage(requiered_samples: int, available_samples: int) -> flo
         print(
             "Required samples are greater than the 60%, the training procedure is nnot adequate, however, will return standard 60$ for illustration purposes."
         )
+        return 0.6
     else:
         print(
             f"{requiered_samples *100 / available_samples}% are required. The training procedure is adequate."
