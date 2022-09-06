@@ -4,6 +4,8 @@ Contains first functions used in the project.
 
 import os
 
+from typing import Dict
+
 import numpy as np
 import pandas as pd
 
@@ -11,60 +13,40 @@ from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
 
 
-def load_excel_data(sheet_name: str) -> dict:
-
-    """
-    Loads data from the data folder and store them in a dictionary.
-
+def load_excel_data(folder_path: str, sheet_name: str) -> Dict[str, pd.DataFrame]:
+    """Loads data from the data folder and store them in a dictionary.
     Args:
+        folder_path (str): Path to the folder containing the data.
         sheet_name (str): sheet name to read from excel.
-
     Returns:
-        dict: Dictionary with dataframes.
+        Dict[str, pd.DataFrame]: Dictionary with dataframes of stock belonging to the category.
     """
-
-    root_folder_path = os.path.dirname(os.getcwd())
-    data_folder_path = os.path.join(root_folder_path, "data")
-    manip_category_names = os.listdir(data_folder_path)
-
-    manip_dict = {}
-
-    for cat_name in manip_category_names:
-
-        cat_folder_path = os.path.join(data_folder_path, cat_name)
-        data_filenames = os.listdir(cat_folder_path)
-        stocks_dict = {}
-
-        for filename in data_filenames:
-
-            coef_and_freq = pd.read_excel(
-                os.path.join(cat_folder_path, filename),
-                sheet_name=sheet_name,
-                header=0,
-            )
-
-            if sheet_name != "spectogram":
-                coefficents = [
-                    "coef_" + str(i + 1) for i in range(coef_and_freq.shape[1] - 1)
-                ]
-                frequencies = ["freq"]
-
-                if sheet_name == "cwt_gaussian":
-                    coefficents = coefficents[:-1]
-                    frequencies.append("scales")
-
-                coef_and_freq.columns = coefficents + frequencies
-
-            stocks_dict[filename.split("_")[0]] = coef_and_freq
-
-        manip_dict[cat_name] = stocks_dict
-
-    return manip_dict
+    data_filenames = os.listdir(folder_path)
+    stocks_dict = {}
+    for filename in data_filenames:
+        coef_and_freq = pd.read_excel(
+            os.path.join(folder_path, filename),
+            sheet_name=sheet_name,
+            header=0,
+        )
+        if sheet_name != "spectogram":
+            coefficents = [
+                "coef_" + str(i + 1) for i in range(coef_and_freq.shape[1] - 1)
+            ]
+            frequencies = ["freq"]
+            if sheet_name == "cwt_gaussian":
+                coefficents = coefficents[:-1]
+                frequencies.append("scales")
+            coef_and_freq.columns = coefficents + frequencies
+        stocks_dict[filename.split("_")[0]] = coef_and_freq
+    return stocks_dict
 
 
 def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float, use_cone: bool) -> dict:
-
-    """Rearanges coefficient values and maps them to its frequency."""
+    """Rearanges coefficient values and maps them to its frequency.
+    Args:
+        stock_df (pd.DataFrame): Dataframe with coefficients and frequencies.
+        energy_threshold (float): Threshold for the energy of the coefficients."""
 
     stock_copy = stock_df.copy()
 
@@ -168,11 +150,26 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float, use_co
     return stock_features
 
 
-def data_loading(sheet_name: str, energy_threshold: float, use_cone: bool) -> dict:
+def data_loading(
+    manip_category: str,
+    energy_threshold: float,
+    use_cone: bool,
+    sheet_name: str = 'cwt',
+) -> dict:
 
-    """Loads the data."""
+    """Loads the data.
+    Args:
+        manip_category (str): Name of the manipulation category.
+        energy_threshold (float): Threshold for the energy of the coefficients.
+        use_cone (bool): Whether to use the cone of influence or not.
+        sheet_name (str): Name of the sheet in the excel file.
+    Returns:
+    """
+    # Get data folder path
+    root_folder_path = os.path.dirname(os.getcwd())
+    manip_folder_path = os.path.join(root_folder_path, "data", manip_category)
 
-    manip_dict = load_excel_data(sheet_name)
+    manip_dict = load_excel_data(manip_folder_path, sheet_name)
 
     manip_features = {}
     for manip_name, stock_dict in manip_dict.items():
