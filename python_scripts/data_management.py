@@ -4,7 +4,7 @@ Contains first functions used in the project.
 
 import os
 
-from typing import Dict
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -13,55 +13,55 @@ from scipy.stats import norm, nbinom
 from sklearn.utils import shuffle
 
 
-def load_excel_data(folder_path: str, sheet_name: str) -> Dict[str, pd.DataFrame]:
+def load_excel_data(folder_path: str) -> Dict[str, np.ndarray]:
     """Loads data from the data folder and store them in a dictionary.
     Args:
         folder_path (str): Path to the folder containing the data.
-        sheet_name (str): sheet name to read from excel.
     Returns:
-        Dict[str, pd.DataFrame]: Dictionary with dataframes of stock belonging to the category.
+        Dict[str, np.ndarray]: Dictionary with dataframes of stock belonging to the category.
     """
     data_filenames = os.listdir(folder_path)
     stocks_dict = {}
     for filename in data_filenames:
         coef_and_freq = pd.read_excel(
-            os.path.join(folder_path, filename),
-            sheet_name=sheet_name,
-            header=0,
-        )
-        if sheet_name != "spectogram":
-            coefficents = [
-                "coef_" + str(i + 1) for i in range(coef_and_freq.shape[1] - 1)
-            ]
-            frequencies = ["freq"]
-            if sheet_name == "cwt_gaussian":
-                coefficents = coefficents[:-1]
-                frequencies.append("scales")
-            coef_and_freq.columns = coefficents + frequencies
+            os.path.join(folder_path, filename), sheet_name="cwt", header=0, dtype=str
+        ).to_numpy()
         stocks_dict[filename.split("_")[0]] = coef_and_freq
     return stocks_dict
 
 
-def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float, use_cone: bool) -> dict:
-    """Rearanges coefficient values and maps them to its frequency.
+def standardize_matrix(feature_matrix: np.ndarray) -> np.ndarray:
+    """Standardize the matrix.
     Args:
-        stock_df (pd.DataFrame): Dataframe with coefficients and frequencies.
-        energy_threshold (float): Threshold for the energy of the coefficients."""
+        feature_matrix (np.ndarray): Matrix to standardize.
+    Returns:
+        np.ndarray: Standardized matrix.
+    """
+    feat_min = np.min(feature_matrix, axis=0)
+    feat_max = np.max(feature_matrix, axis=0)
+    return (feature_matrix - feat_min) / (feat_max - feat_min)
 
-    stock_copy = stock_df.copy()
 
-    cone_of_influence = stock_copy.iloc[0, :-1].astype(float).to_numpy()
-    stock_copy.drop(index=[0], inplace=True)
+def build_feature_matrix(stock_matrix: np.ndarray) -> dict:
+    """Builds feature matrix with time, frequencies, real and imaginary parts of the coefficients,
+        and the complex modulus of the coefficients.
+    Args:
+        stock_matrix (np.ndarray): matrix with data.
+    Returns:
+    """
 
-    frequencies = stock_copy.iloc[:, -1].astype(float)
-    stock_copy.drop(columns=["freq"], inplace=True)
+    stock_copy = stock_matrix.copy()
 
-    if frequencies.unique().shape[0] != frequencies.shape[0]:
-        frequencies = frequencies.to_frame().reset_index()
+    # Get cone of influence and delete it from matrix
+    cone_of_influence = stock_copy[0, :-1].astype(float)
+    stock_copy = np.delete(stock_copy, 0, axis=0)
 
-    frequencies = frequencies.to_numpy()
+    # Get frequencies and delete them from matrix
+    frequencies = stock_copy[:, -1].astype(float)
+    stock_copy = np.delete(stock_copy, -1, axis=1)
 
-    stock_array = stock_copy.to_numpy().astype(str)
+    # Convert coefficients into complex dtype
+    stock_array = stock_copy
     stock_array = np.char.replace(stock_array, "i", "j")
     stock_array = np.char.replace(stock_array, " ", "")
     stock_array = stock_array.astype(np.complex128)
@@ -86,17 +86,7 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float, use_co
             sample_list.append(sample)
 
     # Create feature matrix
-    feature_matrix = np.stack(sample_list)
-
-    # Standardize frequency
-    freq_min = np.min(feature_matrix[:, 1])
-    freq_max = np.max(feature_matrix[:, 1])
-    feature_matrix[:, 1] = (feature_matrix[:, 1] - freq_min) / (freq_max - freq_min)
-
-    # Standardize Time
-    time_min = np.min(feature_matrix[:, 0])
-    time_max = np.max(feature_matrix[:, 0])
-    feature_matrix[:, 0] = (feature_matrix[:, 0] - time_min) / (time_max - time_min)
+    feature_matrix = np.hstack(sample_list)
 
     # Get complex modulus and append it to the feature matrix
     real_power = np.power(feature_matrix[:, 2], 2)
@@ -104,83 +94,94 @@ def build_feature_matrix(stock_df: pd.DataFrame, energy_threshold: float, use_co
     complex_modulus = np.sqrt(real_power + imag_power).reshape(-1, 1)
     feature_matrix = np.concatenate((feature_matrix, complex_modulus), axis=1)
 
-    # Standardize complex modulus and append it to the feature matrix
-    modulus_complex = feature_matrix[:, 4]
-    min_modulus_complex = modulus_complex.min()
-    max_modulus_complex = modulus_complex.max()
-    std_modulus_complex = (modulus_complex - min_modulus_complex) / (
-        max_modulus_complex - min_modulus_complex
-    )
-    std_modulus_complex = std_modulus_complex * 2 - 1
-    feature_matrix = np.concatenate(
-        (feature_matrix, std_modulus_complex.reshape(-1, 1)), axis=1
-    )
+    return feature_matrix, cone_of_influence
+
+
+def assign_labels(
+    feature_matrix: np.ndarray,
+    energy_threshold: float,
+    cone_of_influence: np.ndarray = None,
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    """Assigns labels to the feature matrix.
+    Args:
+        feature_matrix (np.ndarray): Feature matrix.
+        energy_threshold (float): Threshold for the energy of the coefficients.
+        cone_of_influence (np.ndarray): Cone of influence.
+    Returns:
+        Tuple[np.ndarray, Optional[np.ndarray]]: Feature matrix with labels and mask for plotting
+            valid energy points.
+    """
 
     # Assign labels to samples according to a threshold
-    theshold_labels = feature_matrix[:, 5] > 2*energy_threshold - 1
+    theshold_labels = feature_matrix[:, 5] > 2 * energy_threshold - 1
 
-    # Filter samples with energy lower than cone of influence
-    if use_cone:
+    if cone_of_influence is not None:
+
         # Standardize cone of influence for it to be suitable to compare with the frequencies
-        min_cone = cone_of_influence.min()
-        max_cone = cone_of_influence.max()
-        std_cone_of_influence = (cone_of_influence - min_cone) / (max_cone - min_cone)
+        std_cone_of_influence = standardize_matrix(cone_of_influence)
 
         # Append repeated cone of influence to the feature matrix
-        n_freq = frequencies.shape[0]
+        n_freq = len(np.unique(feature_matrix[:, 1]))
         repeated_cone_of_influence = np.array(std_cone_of_influence.tolist() * n_freq)
 
         # Compare frequencies with stndardize cone to determine which samples are suitable for
         # prediction
-        is_valid = feature_matrix[:, 1] > repeated_cone_of_influence
-        real_labels = theshold_labels & is_valid
-        is_valid = is_valid.reshape(-1, 1)
+        mask = feature_matrix[:, 1] > repeated_cone_of_influence
+        real_labels = theshold_labels & mask
+        mask = mask.reshape(-1, 1)
         real_labels = real_labels.astype(int).reshape(-1, 1)
-        feature_matrix = np.concatenate((feature_matrix, is_valid, real_labels), axis=1)
-    else:
-        mask = np.ones(shape=(feature_matrix.shape[0], 1))
-        theshold_labels = theshold_labels.reshape(-1, 1)
-        feature_matrix = np.concatenate((feature_matrix, mask, theshold_labels), axis=1)
+        feature_matrix = np.concatenate((feature_matrix, real_labels), axis=1)
 
-    stock_features = {
-        "feature_matrix": feature_matrix,
-        "cone_of_influence": cone_of_influence,
-    }
+        return feature_matrix, mask
 
-    return stock_features
+    theshold_labels = theshold_labels.reshape(-1, 1)
+    feature_matrix = np.concatenate((feature_matrix, theshold_labels), axis=1)
+
+    return feature_matrix, None
 
 
 def data_loading(
     manip_category: str,
     energy_threshold: float,
     use_cone: bool,
-    sheet_name: str = 'cwt',
-) -> dict:
-
+) -> Dict[str, Dict[str, np.ndarray]]:
     """Loads the data.
     Args:
         manip_category (str): Name of the manipulation category.
         energy_threshold (float): Threshold for the energy of the coefficients.
         use_cone (bool): Whether to use the cone of influence or not.
-        sheet_name (str): Name of the sheet in the excel file.
     Returns:
+        Dict[str, Dict[str, np.ndarray]]: Dictionary with numpy of stock belonging to the
+            category.
     """
+
     # Get data folder path
     root_folder_path = os.path.dirname(os.getcwd())
     manip_folder_path = os.path.join(root_folder_path, "data", manip_category)
 
-    manip_dict = load_excel_data(manip_folder_path, sheet_name)
+    # Load raw data
+    stocks_dict = load_excel_data(manip_folder_path)
 
-    manip_features = {}
-    for manip_name, stock_dict in manip_dict.items():
-        stock_features = {}
-        for stock_name, stock_df in stock_dict.items():
-            stock_features[stock_name] = build_feature_matrix(
-                stock_df, energy_threshold, use_cone
+    # Preprocess data
+    stocks_features = {}
+    for stock_name, stock_matrix in stocks_dict.items():
+        # Get features
+        feature_matrix, cone_of_influence = build_feature_matrix(stock_matrix)
+        # Standardize features
+        feature_matrix = standardize_matrix(feature_matrix)
+        # Change modulus range
+        feature_matrix[:, -1] = feature_matrix[:, -1] * 2 - 1
+        # Assign labels
+        if use_cone:
+            feature_matrix, mask = assign_labels(
+                feature_matrix, energy_threshold, cone_of_influence
             )
-        manip_features[manip_name] = stock_features
+        else:
+            feature_matrix, mask = assign_labels(feature_matrix, energy_threshold)
+        # Append to dictionary
+        stocks_features[stock_name] = {"features": feature_matrix, "mask": mask}
 
-    return manip_features
+    return stocks_features
 
 
 def binary_search_percentile(
@@ -356,7 +357,9 @@ def joint_random_sampling(
             stock_y_val,
             stock_X_test_all,
             stock_y_test,
-        ) = random_sampling(stock_features["feature_matrix"], train_size, val_size, distribution)
+        ) = random_sampling(
+            stock_features["feature_matrix"], train_size, val_size, distribution
+        )
         X_train_list.append(stock_X_train)
         y_train_list.append(stock_y_train)
         X_val_list.append(stock_X_val)
