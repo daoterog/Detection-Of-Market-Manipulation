@@ -4,6 +4,8 @@ Plotting module.
 
 import os
 
+from typing import Dict
+
 import numpy as np
 import pandas as pd
 
@@ -14,41 +16,32 @@ import matplotlib.pyplot as plt
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 def color_plot(
-    feature_matrix: np.ndarray,
-    freq_index: int,
-    modulus_index: int,
-    use_cone: bool,
+    stock_dict: Dict[str,np.ndarray],
     title: str,
-    mask_index: int = None,
     savefig: bool = False,
     figname: str = None,
 ) -> None:
+    """Makes color plot.
+    Args:
+        stock_dict (Dict[str,np.ndarray]): Dictionary with stock names as keys and
+            feature matrices as values.
+        title (str): Title of the plot.
+        savefig (bool): Whether to save the figure or not.
+        figname (str): Name of the figure to be saved.
+    """
 
-    """Makes color plot of the specified variable of the feature matrix."""
+    # Instance parameters
+    feature_matrix = stock_dict["features"]
+    mask = stock_dict["mask"]
 
-    if use_cone and mask_index is None:
-        raise ValueError("Mask index not specified")
+    # Create dataframe
+    abs_frequency_df = pd.DataFrame(
+        feature_matrix[:, [0, 1, 4]],
+        columns=["time_window", "frequency", "complex_modulus"],
+    )
 
     # Pivot the feature matrix in a way that the complex modulus are mapped to the frequencies in a
     # time coherent manner and sort according to the frequencies in descending fashion.
-
-    # Create dataframe
-    if use_cone:
-        columns_index = [freq_index, modulus_index, mask_index]
-        columns_name = ["frequency", "complex_modulus", "mask"]
-    else:
-        columns_index = [freq_index, modulus_index]
-        columns_name = ["frequency", "complex_modulus"]
-
-    abs_frequency_df = pd.DataFrame(
-        feature_matrix[:, columns_index],
-        columns=columns_name,
-    )
-
-    # Create column with time window
-    n_freq = abs_frequency_df.frequency.unique().shape[0]
-    n_cols = int(abs_frequency_df.shape[0] / n_freq)
-    abs_frequency_df["time_window"] = list(range(n_cols)) * n_freq
 
     # Create pivot tables with frequency as index and time window as columns
     complex_modulus_pivot = abs_frequency_df.pivot_table(
@@ -56,38 +49,34 @@ def color_plot(
     )
     complex_modulus_pivot.sort_values(by="frequency", inplace=True, ascending=False)
 
-    if use_cone:
+    if mask is not None:
+        abs_frequency_df["mask"] = mask
         mask_pivot = abs_frequency_df.pivot_table(
             index="frequency", columns="time_window", values="mask"
         )
         mask_pivot = ~mask_pivot.astype(bool)
         mask_pivot.sort_values(by="frequency", inplace=True, ascending=False)
         mask_pivot.index = np.round(complex_modulus_pivot.index, 2)
+        mask_pivot.columns = np.round(complex_modulus_pivot.columns, 2)
 
     # Round frequencies
     complex_modulus_pivot.index = np.round(complex_modulus_pivot.index, 2)
-
-    # Define xticks
-    min_window = complex_modulus_pivot.columns.min()
-    max_window = complex_modulus_pivot.columns.max()
-    xticks = np.arange(min_window, max_window + 1, 100)
+    complex_modulus_pivot.columns = np.round(complex_modulus_pivot.columns, 2)
 
     # Plot
-    if use_cone:
+    if mask is not None:
         fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=(9, 4), dpi=100)
     else:
         fig, ax0 = plt.subplots(nrows=1, ncols=1, figsize=(5, 4), dpi=100)
 
     sns.heatmap(complex_modulus_pivot, cmap="viridis", vmin=-1, vmax=1, ax=ax0)
     ax0.set_title("Complete Plot")
-    ax0.set_xticks(xticks, labels=xticks)
 
-    if use_cone:
+    if mask is not None:
         sns.heatmap(
             complex_modulus_pivot, cmap="viridis", vmin=-1, vmax=1, ax=ax1, mask=mask_pivot
         )
         ax1.set_title("Masked Plot")
-        ax1.set_xticks(xticks, labels=xticks)
 
     fig.suptitle(title)
     plt.tight_layout()

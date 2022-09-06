@@ -61,7 +61,7 @@ def build_feature_matrix(stock_matrix: np.ndarray) -> dict:
     stock_copy = np.delete(stock_copy, -1, axis=1)
 
     # Convert coefficients into complex dtype
-    stock_array = stock_copy
+    stock_array = stock_copy.astype(str)
     stock_array = np.char.replace(stock_array, "i", "j")
     stock_array = np.char.replace(stock_array, " ", "")
     stock_array = stock_array.astype(np.complex128)
@@ -86,7 +86,7 @@ def build_feature_matrix(stock_matrix: np.ndarray) -> dict:
             sample_list.append(sample)
 
     # Create feature matrix
-    feature_matrix = np.hstack(sample_list)
+    feature_matrix = np.vstack(sample_list)
 
     # Get complex modulus and append it to the feature matrix
     real_power = np.power(feature_matrix[:, 2], 2)
@@ -113,7 +113,7 @@ def assign_labels(
     """
 
     # Assign labels to samples according to a threshold
-    theshold_labels = feature_matrix[:, 5] > 2 * energy_threshold - 1
+    theshold_labels = feature_matrix[:, -1] > 2 * energy_threshold - 1
 
     if cone_of_influence is not None:
 
