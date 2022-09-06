@@ -92,8 +92,13 @@ def color_plot(
 def plot_target_classes(
     y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray, stock: str
 ) -> None:
-
-    """Plot target classes distribution"""
+    """Plot target classes distribution.
+    Args:
+        y_train (np.ndarray): Training target classes.
+        y_val (np.ndarray): Validation target classes.
+        y_test (np.ndarray): Test target classes.
+        stock (str): Stock name.
+    """
 
     target_classes, train_occurrences = np.unique(y_train, return_counts=True)
     _, val_occurrences = np.unique(y_val, return_counts=True)
@@ -150,22 +155,20 @@ def plot3d_dataset(
     title: str,
     plot_against: str,
     hue_var: str,
-    target_var: np.ndarray = None,
 ) -> None:
-
-    """Generates seaborn pairplot from dataset."""
+    """Generates seaborn pairplot from dataset.
+    Args:
+        feature_matrix (np.ndarray): Feature matrix.
+        title (str): Title of the plot.
+        plot_against (str): Variable to plot against.
+        hue_var (str): Variable to use for hue."""
 
     if hue_var == "modulus":
-        var_index = 5
+        var_index = 4
         var_name = "std_complex_modulus"
     elif hue_var == "target":
         var_index = -1
         var_name = "target"
-        if target_var is None:
-            raise ValueError("Target variable not specified")
-        feature_matrix = np.concatenate(
-            (feature_matrix, target_var.reshape(-1, 1)), axis=1
-        )
     else:
         raise ValueError(
             "Invalid plot_against argument. Allowed values are 'modulus' or 'target'"
