@@ -252,7 +252,8 @@ def sample_data(
         percentile_list = np.random.uniform(0, 1, size=(n_iter,))
     else:
         raise ValueError(
-            "Distribution not recognized. Available distributions are: normal, negative_binomial, uniform"
+            "Distribution not recognized. Available distributions are: normal, negative_binomial," +
+            " uniform"
         )
 
     # Find percentile for each random number
@@ -358,7 +359,7 @@ def joint_random_sampling(
             stock_X_test_all,
             stock_y_test,
         ) = random_sampling(
-            stock_features["feature_matrix"], train_size, val_size, distribution
+            stock_features["features"], train_size, val_size, distribution
         )
         X_train_list.append(stock_X_train)
         y_train_list.append(stock_y_train)
