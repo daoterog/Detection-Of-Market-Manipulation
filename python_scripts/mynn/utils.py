@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
 from scipy.stats import norm, nbinom
 
-from neural_network import NeuralNetwork
+from mynn.neural_network import NeuralNetwork
 
 
 def get_batch(
@@ -33,6 +33,41 @@ def get_batch(
         yield feature_matrix[:, i : i + batch_size], targets[:, i : i + batch_size]
 
 
+def get_mean_epoch_gradient(
+    grad_list: t.List[t.Dict[int, np.ndarray]]
+) -> t.Dict[int, np.ndarray]:
+    """Gets the mean gradient for each epoch.
+    Args:
+        grad_list (t.List[t.Dict[int, np.ndarray]]): List of gradients.
+    Returns:
+        t.Dict[int, np.ndarray]: Mean gradient for each epoch.
+    """
+    mean_grads = OrderedDict()
+    for layer in grad_list[0].keys():
+        grad_layer = []
+        for iter_grads in grad_list:
+            grad_layer.append(iter_grads[layer].reshape(-1, 1))
+        mean_grads[layer] = np.mean(np.hstack(grad_layer), axis=0)
+    return mean_grads
+
+
+def differentiate_gradients(
+    diff_grads: t.List[t.Dict[int, np.ndarray]]
+) -> t.List[float]:
+    """Differentiates the gradients.
+    Args:
+        diff_grads (t.List[t.Dict[int, np.ndarray]]): Differentiated gradients.
+    Returns:
+        t.List[float]: Differentiated gradients.
+    """
+    if len(diff_grads) > 2:
+        diff_grads.pop(0)
+    return [
+        np.abs(prev_grad - cur_grad)
+        for prev_grad, cur_grad in zip(diff_grads[0].values(), diff_grads[1].values())
+    ]
+
+
 def train_model(
     model: NeuralNetwork,
     feature_matrix: np.ndarray,
@@ -40,7 +75,7 @@ def train_model(
     n_iter: int,
     batch_size: int,
     verbose: bool = False,
-) -> t.Tuple[NeuralNetwork, OrderedDict]:
+) -> t.Tuple[NeuralNetwork, OrderedDict, int, str]:
     """Trains the model for a given number of epochs and returns the training history.
     Args:
         model (NeuralNetwork): Neural network model.
@@ -50,20 +85,25 @@ def train_model(
         batch_size (int): Batch size.
         verbose (bool, optional): Whether to print the loss. Defaults to False.
     Returns:
-        t.Tuple[NeuralNetwork, OrderedDict]: Trained model and training history.
+        t.Tuple[NeuralNetwork, OrderedDict, int, str]: Trained model, training history, epoch in
+            which the algorithm stopped, and reason for stopping.
     """
-    num_epochs = int(np.ceil(n_iter / (feature_matrix.shape[0] / batch_size)))
+    num_epochs = int(np.floor(n_iter / (feature_matrix.shape[0] / batch_size)))
     train_history = OrderedDict()
     iter_num = 0
+    weight_diff_grads = []
+    bias_diff_grads = []
     for epoch in range(num_epochs):
         loss_list = []
+        weight_grad_list = []
+        bias_grad_list = []
         for batch_inputs, batch_targets in get_batch(
             feature_matrix.T, targets.T, batch_size
         ):
             # Forward pass
             _ = model.forward(batch_inputs)
             # Compute loss
-            loss = model.get_loss(batch_targets)
+            loss = np.mean(model.get_loss(batch_targets))
             loss_list.append(loss)
             # Backward pass
             model.backward(batch_targets)
@@ -77,10 +117,34 @@ def train_model(
                 "weight_grads": weight_grads,
                 "bias_grads": bias_grads,
             }
+            weight_grad_list.append(weight_grads)
+            bias_grad_list.append(bias_grads)
             iter_num += 1
+        # Evaluate verbosity
         if verbose:
             print(f"Epoch {epoch + 1}/{num_epochs} | Loss: {np.mean(loss_list)}")
-    return model, train_history
+        # Evaluate Loss convergence
+        if np.mean(loss_list) <= 1e-2:
+            return model, train_history, epoch, "Loss converged"
+        # Evaluate Gradient convergence
+        weight_diff_grads.append(get_mean_epoch_gradient(weight_grad_list))
+        if not any(bias_grad_list):
+            if len(weight_diff_grads) > 1:
+                weight_diff = differentiate_gradients(weight_diff_grads)
+                if np.all(np.array(weight_diff) < 1e-5):
+                    return model, train_history, epoch, "Weight gradients converged"
+        else:
+            bias_diff_grads.append(get_mean_epoch_gradient(bias_grad_list))
+            if len(weight_diff_grads) > 1 and len(bias_diff_grads) > 1:
+                weight_diff = differentiate_gradients(weight_diff_grads)
+                bias_diff = differentiate_gradients(bias_diff_grads)
+                if np.all(np.array(weight_diff) < 1e-5) and np.all(
+                    np.array(bias_diff) < 1e-5
+                ):
+                    return model, train_history, epoch, "Weight and bias gradients converged"
+
+
+    return model, train_history, epoch, "Max epochs reached"
 
 
 def unstack_grads(
@@ -121,15 +185,17 @@ def stack_mean_gradients(
 def plot_training_history(
     train_history: OrderedDict,
     plot_by_epoch: bool = False,
+    batch_size: int = None,
     train_len: int = None,
+    verbose: bool = True,
     savefig: bool = False,
-    figname: str = "model_history",
+    savepath: str = ".",
 ) -> None:
     """Plots the training history.
     Args:
         train_history (OrderedDict): Training history.
         savefig (bool, optional): Whether to save the figure. Defaults to False.
-        figname (str, optional): Figure name. Defaults to 'model_history'.
+        savepath (str, optional): Path to save the figure. Defaults to ".".
     """
 
     # Unzip items
@@ -139,9 +205,6 @@ def plot_training_history(
             for k, v in train_history.items()
         ]
     )
-
-    # Get mean loss
-    mean_loss = [np.mean(loss_i) for loss_i in loss]
 
     # Unstack gradients
     _, weight_layer_mean_grads = unstack_grads(weight_grads)
@@ -154,20 +217,25 @@ def plot_training_history(
     if include_bias:
         bias_stacked_mean_grads = stack_mean_gradients(bias_layer_mean_grads)
 
-    xlabel = 'Iteration'
+    xlabel = "Iteration"
     if plot_by_epoch:
-        mean_loss = np.array(mean_loss).reshape(-1, 1)
-        print(mean_loss.shape)
-        weight_stacked_mean_grads, mean_loss = zip(*[
-            (np.mean(grad_batch, axis=1), np.mean(loss_batch, axis=1))
-            for grad_batch, loss_batch in get_batch(weight_stacked_mean_grads.T, mean_loss.T, train_len)
-        ])
-        iters = list(range(len(mean_loss)))
-        xlabel = 'Epoch'
+        mean_loss = np.array(loss).reshape(-1, 1)
+        weight_stacked_mean_grads, mean_loss = zip(
+            *[
+                (np.mean(grad_batch, axis=1), np.mean(loss_batch))
+                for grad_batch, loss_batch in get_batch(
+                    weight_stacked_mean_grads.T, mean_loss.T, train_len//batch_size
+                )
+            ]
+        )
+        iters = list(range(len(mean_loss[:-1])))
+        xlabel = "Epoch"
         if include_bias:
             bias_stacked_mean_grads = [
                 np.mean(grad_batch)
-                for grad_batch, _ in get_batch(bias_stacked_mean_grads.T, bias_stacked_mean_grads.T, train_len)
+                for grad_batch, _ in get_batch(
+                    bias_stacked_mean_grads.T, bias_stacked_mean_grads.T, train_len
+                )
             ]
 
     if include_bias:
@@ -175,19 +243,19 @@ def plot_training_history(
     else:
         _, (ax0, ax1) = plt.subplots(1, 2, figsize=(10, 3))
 
-    ax0.plot(iters, mean_loss)
+    ax0.plot(iters, mean_loss[:-1])
     ax0.set_title("Loss")
     ax0.set_xlabel(xlabel)
     ax0.set_ylabel("Loss")
 
-    ax1.plot(iters, weight_stacked_mean_grads)
+    ax1.plot(iters, weight_stacked_mean_grads[:-1])
     ax1.set_title("Mean weight gradients")
     ax1.legend([f"Layer {i}" for i in range(len(weight_stacked_mean_grads[0]))])
     ax1.set_xlabel(xlabel)
     ax1.set_ylabel("Mean gradient")
 
     if include_bias:
-        ax2.plot(iters, bias_stacked_mean_grads)
+        ax2.plot(iters, bias_stacked_mean_grads[:-1])
         ax2.set_title("Mean bias gradients")
         ax2.legend([f"Layer {i}" for i in range(len(bias_stacked_mean_grads[0]))])
         ax2.set_xlabel(xlabel)
@@ -195,8 +263,10 @@ def plot_training_history(
 
     plt.tight_layout()
     if savefig:
-        plt.savefig(f"{figname}.png")
-    plt.show()
+        path = os.path.join(savepath, "training_history.png")
+        plt.savefig(path)
+    if verbose:
+        plt.show()
 
 
 def readmatfile(filepath: str) -> np.ndarray:

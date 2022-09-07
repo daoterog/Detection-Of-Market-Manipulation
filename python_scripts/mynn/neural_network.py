@@ -2,12 +2,14 @@
 Neural Network module.
 """
 
+import os
 import typing as t
+import json
 
 import numpy as np
 
-from layers import Layer
-from loss import (
+from mynn.layers import Layer
+from mynn.loss import (
     cuadratic_loss,
     cuadratic_loss_derivative,
     binary_cross_entropy,
@@ -88,3 +90,42 @@ class NeuralNetwork:
             if layer.include_bias:
                 bias_grads[lay_num] = bias_grad
         return weight_grads, bias_grads
+
+    def store_parameters(self, path: str) -> None:
+        """Stores the parameters of the neural network.
+        Args:
+            path (str): Path where the parameters will be stored.
+        """
+        weight_dict = {}
+        bias_dict = {}
+        for lay_num, layer in enumerate(self.layers):
+            layer_weights, layer_bias = layer.get_parameters()
+            weight_dict[lay_num] = layer_weights
+            if layer.include_bias:
+                bias_dict[lay_num] = layer_bias
+
+        weights_path = os.path.join(path, "weights.json")
+        with open(weights_path, "w", encoding='utf-8') as file:
+            json.dump(weight_dict, file)
+
+        biases_path = os.path.join(path, "biases.json")
+        with open(biases_path, "w", encoding='utf-8') as file:
+            json.dump(bias_dict, file)
+
+    def load_parameters(self, path: str) -> None:
+        """Loads the parameters of the neural network.
+        Args:
+            path (str): Path where the parameters are stored.
+        """
+        weights_path = os.path.join(path, "weights.json")
+        with open(weights_path, "r", encoding='utf-8') as file:
+            weight_dict = json.load(file)
+
+        biases_path = os.path.join(path, "biases.json")
+        with open(biases_path, "r", encoding='utf-8') as file:
+            bias_dict = json.load(file)
+
+        for lay_num, layer in enumerate(self.layers):
+            layer_weights = weight_dict.get(str(lay_num))
+            layer_bias = bias_dict.get(str(lay_num))
+            layer.set_parameters(layer_weights, layer_bias)

@@ -6,7 +6,7 @@ import typing as t
 
 import numpy as np
 
-from activations import (
+from mynn.activations import (
     sigmoid,
     sigmoid_derivative,
     linear,
@@ -25,7 +25,10 @@ class Layer:
     """Layers object of neural network."""
 
     def __init__(
-        self, input_size: np.ndarray, output_size: np.ndarray, activation: str, include_bias: bool = False
+        self, input_size: np.ndarray,
+        output_size: np.ndarray,
+        activation: str,
+        include_bias: bool = False
     ):
         self.weights = np.random.randn(output_size, input_size) * 0.01
         self.include_bias = include_bias
@@ -103,3 +106,22 @@ class Layer:
             t.Tuple[np.ndarray, np.ndarray]: Gradients of the layer.
         """
         return self.weights_grad, self.bias_grad
+
+    def get_parameters(self) -> t.Tuple[np.ndarray, t.Optional[np.ndarray]]:
+        """Returns the weights and bias of the layer.
+        Returns:
+            t.Tuple[np.ndarray, t.Optional[np.ndarray]]: Weights and bias of the layer.
+        """
+        if self.include_bias:
+            return self.weights.tolist(), self.bias.tolist()
+        return self.weights.tolist(), None
+
+    def set_parameters(self, weights: np.ndarray, bias: np.ndarray) -> None:
+        """Sets the weights and bias of the layer.
+        Args:
+            weights (np.ndarray): Weights of the layer.
+            bias (np.ndarray): Bias of the layer.
+        """
+        self.weights = np.array(weights)
+        if self.include_bias:
+            self.bias = np.array(bias)
