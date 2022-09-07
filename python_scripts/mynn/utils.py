@@ -68,6 +68,47 @@ def differentiate_gradients(
     ]
 
 
+def evaluate_early_stopping_criteria(
+    loss_list: t.List[int],
+    weight_grad_list: t.List[t.Dict[int, np.ndarray]],
+    weight_diff_grads: t.List[t.Dict[int, np.ndarray]],
+    bias_grad_list: t.List[t.Dict[int, np.ndarray]],
+    bias_diff_grads: t.List[t.Dict[int, np.ndarray]],
+    previous: bool,
+) -> t.Tuple[bool, t.Optional[str], t.Optional[str]]:
+    """Evaluates if the early stopping criteria are met.
+    Args:
+    """
+
+    # Evaluate Loss convergence
+    if np.mean(loss_list) <= 1e-2:
+        return True, "Loss converged"
+    # Evaluate Gradient convergence
+    weight_diff_grads.append(get_mean_epoch_gradient(weight_grad_list))
+    if not any(bias_grad_list):
+        if len(weight_diff_grads) > 1:
+            weight_diff = differentiate_gradients(weight_diff_grads)
+            if np.all(np.array(weight_diff) < 1e-5):
+                if previous:
+                    return True, "Weight gradients converged", None
+                else:
+                    return False, None, True
+    else:
+        bias_diff_grads.append(get_mean_epoch_gradient(bias_grad_list))
+        if len(weight_diff_grads) > 1 and len(bias_diff_grads) > 1:
+            weight_diff = differentiate_gradients(weight_diff_grads)
+            bias_diff = differentiate_gradients(bias_diff_grads)
+            if np.all(np.array(weight_diff) < 1e-5) and np.all(
+                np.array(bias_diff) < 1e-5
+            ):
+                if previous:
+                    return True, "Weight and bias gradients converged", None
+                else:
+                    return False, None, True
+
+    return False, None, False
+
+
 def train_model(
     model: NeuralNetwork,
     feature_matrix: np.ndarray,
@@ -93,6 +134,7 @@ def train_model(
     iter_num = 0
     weight_diff_grads = []
     bias_diff_grads = []
+    previous = False
     for epoch in range(num_epochs):
         loss_list = []
         weight_grad_list = []
@@ -123,28 +165,26 @@ def train_model(
         # Evaluate verbosity
         if verbose:
             print(f"Epoch {epoch + 1}/{num_epochs} | Loss: {np.mean(loss_list)}")
-        # Evaluate Loss convergence
-        if np.mean(loss_list) <= 1e-2:
-            return model, train_history, epoch, "Loss converged"
-        # Evaluate Gradient convergence
-        weight_diff_grads.append(get_mean_epoch_gradient(weight_grad_list))
-        if not any(bias_grad_list):
-            if len(weight_diff_grads) > 1:
-                weight_diff = differentiate_gradients(weight_diff_grads)
-                if np.all(np.array(weight_diff) < 1e-5):
-                    return model, train_history, epoch, "Weight gradients converged"
-        else:
-            bias_diff_grads.append(get_mean_epoch_gradient(bias_grad_list))
-            if len(weight_diff_grads) > 1 and len(bias_diff_grads) > 1:
-                weight_diff = differentiate_gradients(weight_diff_grads)
-                bias_diff = differentiate_gradients(bias_diff_grads)
-                if np.all(np.array(weight_diff) < 1e-5) and np.all(
-                    np.array(bias_diff) < 1e-5
-                ):
-                    return model, train_history, epoch, "Weight and bias gradients converged"
 
+        if len(weight_diff_grads) > 2:
+            weight_diff_grads.pop(0)
 
-    return model, train_history, epoch, "Max epochs reached"
+        if len(bias_diff_grads) > 2:
+            bias_diff_grads.pop(0)
+
+        stop, stop_criterion, previous = evaluate_early_stopping_criteria(loss_list,
+                                                                        weight_grad_list,
+                                                                        weight_diff_grads,
+                                                                        bias_grad_list,
+                                                                        bias_diff_grads,
+                                                                        previous)
+        if stop:
+            break
+
+    if stop_criterion is None:
+        stop_criterion = "Max epochs reached"
+
+    return model, train_history, epoch, stop_criterion
 
 
 def unstack_grads(

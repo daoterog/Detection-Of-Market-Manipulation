@@ -179,10 +179,7 @@ def pipeline(
                 trained_model.store_parameters(model_savepath)
                 # Append results to pandas dataframe
                 overall_results_df = overall_results_df.append(results, ignore_index=True)
-                break
             break
         break
-    
-
     # Save overall results
     overall_results_df.to_json(os.path.join(savepath, 'overall_results.json'))
