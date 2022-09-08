@@ -1,1 +1,0 @@
-{"Train": 0.1681368097554822, "Val": 0.17001781910717373, "Test": 0.17275772671838271, "max_epoch": 5, "stop_reason": "Weight gradients converged", "num_hidden_layers": 3, "total_hidden_units": 10, "unit_combination": [1, 5, 4], "learning_rate": 0.2}

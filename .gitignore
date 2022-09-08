@@ -1,6 +1,6 @@
 #ignore results and plots
-nn_results/*
-plots/*
+nn_results/
+plots/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
