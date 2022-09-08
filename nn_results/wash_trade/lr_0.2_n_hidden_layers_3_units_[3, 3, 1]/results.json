@@ -1,0 +1,1 @@
+{"Train": 1.4398599550801314, "Val": 1.4380823405987888, "Test": 1.4386516160774239, "max_epoch": 49, "stop_reason": "Max epochs reached", "num_hidden_layers": 3, "total_hidden_units": 7, "unit_combination": [3, 3, 1], "learning_rate": 0.2}

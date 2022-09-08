@@ -6,8 +6,8 @@ import os
 import random
 import numpy as np
 
-from data_management import data_loading, joint_random_sampling
-from nn_benchmarking import pipeline
+from helper_functions.data_management import data_loading, joint_random_sampling
+from mynn.benchmarking import pipeline
 
 np.random.seed(777)
 random.seed(777)
