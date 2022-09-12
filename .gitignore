@@ -1,3 +1,8 @@
+#ignore results and plots
+nn_results/
+plots/
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
