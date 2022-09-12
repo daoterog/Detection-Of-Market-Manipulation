@@ -57,9 +57,9 @@ def get_layer_list(
     Returns:
         t.List[Layer]: List of layers.
     """
-    layers = [Layer(input_shape, units_per_hidden_layer[0], "tanh")]
+    layers = [Layer(input_shape, units_per_hidden_layer[0], "sigmoid")]
     for idx, units in enumerate(units_per_hidden_layer[:-1]):
-        layers.append(Layer(units, units_per_hidden_layer[idx + 1], "tanh"))
+        layers.append(Layer(units, units_per_hidden_layer[idx + 1], "sigmoid"))
     layers.append(Layer(units_per_hidden_layer[-1], output_shape, "tanh"))
     return layers
 
@@ -179,7 +179,5 @@ def pipeline(
                 trained_model.store_parameters(model_savepath)
                 # Append results to pandas dataframe
                 overall_results_df = overall_results_df.append(results, ignore_index=True)
-            break
-        break
     # Save overall results
     overall_results_df.to_json(os.path.join(savepath, 'overall_results.json'))

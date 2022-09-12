@@ -31,7 +31,7 @@ def get_experimentation_results(
         _,
         test_x_all,
         _,
-    ) = joint_random_sampling(manip_features, 0.6, 0.5, "uniform")
+    ) = joint_random_sampling(manip_features, 0.6, 0.5, "uniform", undersample=True)
     # Characteristics filtering
     train_tuple = (train_x_all[:, :4], train_x_all[:, 4].reshape(-1, 1))
     val_tuple = (val_x_all[:, :4], val_x_all[:, 4].reshape(-1, 1))
