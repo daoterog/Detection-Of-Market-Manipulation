@@ -116,21 +116,12 @@ def plot_target_classes(
 
     ax0.bar(target_classes, train_occurrences, color=color, width=width, align="center")
     ax0.set_title("Train Absolute\nOccurrences")
-    ax0.text(
-        1, train_occurrences[1], train_occurrences[1], ha="center", va="bottom", size=15
-    )
 
     ax1.bar(target_classes, val_occurrences, color=color, width=width)
     ax1.set_title("Validation Absolute\nOccurrences")
-    ax1.text(
-        1, test_occurrences[1], test_occurrences[1], ha="center", va="bottom", size=15
-    )
 
     ax2.bar(target_classes, test_occurrences, color=color, width=width)
     ax2.set_title("Test Absolute\nOccurrences")
-    ax2.text(
-        1, test_occurrences[1], test_occurrences[1], ha="center", va="bottom", size=15
-    )
 
     ax3.bar(
         target_classes, train_occurrences / total_occurrences, color=color, width=width
