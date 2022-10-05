@@ -13,10 +13,12 @@ import seaborn as sns
 import plotly.express as px
 import matplotlib.pyplot as plt
 
+
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
+
 def color_plot(
-    stock_dict: Dict[str,np.ndarray],
+    stock_dict: Dict[str, np.ndarray],
     title: str,
     savefig: bool = False,
     figname: str = None,
@@ -74,7 +76,12 @@ def color_plot(
 
     if mask is not None:
         sns.heatmap(
-            complex_modulus_pivot, cmap="viridis", vmin=-1, vmax=1, ax=ax1, mask=mask_pivot
+            complex_modulus_pivot,
+            cmap="viridis",
+            vmin=-1,
+            vmax=1,
+            ax=ax1,
+            mask=mask_pivot,
         )
         ax1.set_title("Masked Plot")
 
@@ -199,4 +206,38 @@ def plot3d_dataset(
         },
     )
     fig.update_traces(showlegend=False)
+    fig.show()
+
+
+def plot_umap(
+    embedding: np.ndarray, target: np.ndarray, n_components: int = 2, title: str = ""
+) -> None:
+    """Plots UMAP embedding of feature matrix.
+    Args:
+        feature_matrix (np.ndarray): Feature matrix.
+        target (np.ndarray): Target vector.
+        n_neighbors (int, optional): Number of neighbors. Defaults to 15.
+        min_dist (float, optional): Minimum distance. Defaults to 0.1.
+        n_components (int, optional): Number of components. Defaults to 2.
+        metric (str, optional): Distance metric. Defaults to 'euclidean'.
+        title (str, optional): Plot title. Defaults to ''.
+    """
+    if n_components == 2:
+        fig = px.scatter(x=embedding[:, 0], y=embedding[:, 1], color=target)
+    elif n_components == 3:
+        fig = px.scatter_3d(
+            x=embedding[:, 0], y=embedding[:, 1], z=embedding[:, 2], color=target
+        )
+    else:
+        raise ValueError("n_components must be 2 or 3")
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        title={
+            "text": title,
+            "y": 0.95,
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+        },
+    )
     fig.show()
