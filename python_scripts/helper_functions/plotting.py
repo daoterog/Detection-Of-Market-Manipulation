@@ -4,7 +4,8 @@ Plotting module.
 
 import os
 
-from typing import Dict
+from typing import Dict, Tuple, List
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -13,10 +14,12 @@ import seaborn as sns
 import plotly.express as px
 import matplotlib.pyplot as plt
 
+
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
+
 def color_plot(
-    stock_dict: Dict[str,np.ndarray],
+    stock_dict: Dict[str, np.ndarray],
     title: str,
     savefig: bool = False,
     figname: str = None,
@@ -74,7 +77,12 @@ def color_plot(
 
     if mask is not None:
         sns.heatmap(
-            complex_modulus_pivot, cmap="viridis", vmin=-1, vmax=1, ax=ax1, mask=mask_pivot
+            complex_modulus_pivot,
+            cmap="viridis",
+            vmin=-1,
+            vmax=1,
+            ax=ax1,
+            mask=mask_pivot,
         )
         ax1.set_title("Masked Plot")
 
@@ -200,3 +208,167 @@ def plot3d_dataset(
     )
     fig.update_traces(showlegend=False)
     fig.show()
+
+
+def plot_umap(
+    embedding: np.ndarray, target: np.ndarray, n_components: int = 2, title: str = ""
+) -> None:
+    """Plots UMAP embedding of feature matrix.
+    Args:
+        feature_matrix (np.ndarray): Feature matrix.
+        target (np.ndarray): Target vector.
+        n_neighbors (int, optional): Number of neighbors. Defaults to 15.
+        min_dist (float, optional): Minimum distance. Defaults to 0.1.
+        n_components (int, optional): Number of components. Defaults to 2.
+        metric (str, optional): Distance metric. Defaults to 'euclidean'.
+        title (str, optional): Plot title. Defaults to ''.
+    """
+    if n_components == 2:
+        fig = px.scatter(x=embedding[:, 0], y=embedding[:, 1], color=target)
+    elif n_components == 3:
+        fig = px.scatter_3d(
+            x=embedding[:, 0], y=embedding[:, 1], z=embedding[:, 2], color=target
+        )
+    else:
+        raise ValueError("n_components must be 2 or 3")
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        title={
+            "text": title,
+            "y": 0.95,
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+        },
+    )
+    fig.show()
+
+
+def unstack_grads(
+    grads: Tuple[Dict[int, np.ndarray]]
+) -> Tuple[Dict[int, List[np.ndarray]], Dict[int, List[float]]]:
+    """Unstacks the gradients.
+    Args:
+        grads (t.Tuple[t.Dict[int, np.ndarray]]): Gradients.
+    Returns:
+        t.Tuple[t.Dict[int, t.List[np.ndarray]], t.Dict[int, t.List[float]]]: Tuple of unstacked
+            gradients, the first one containing the whole gradient matrices and the second one the
+            mean of the gradients.
+    """
+    layer_grads = OrderedDict()
+    layer_mean_grads = OrderedDict()
+    for iter_grads in grads:
+        for layer, grad in iter_grads.items():
+            if layer not in layer_grads:
+                layer_grads[layer] = []
+                layer_mean_grads[layer] = []
+            layer_grads[layer].append(grad)
+            layer_mean_grads[layer].append(np.mean(grad))
+    return layer_grads, layer_mean_grads
+
+
+def stack_mean_gradients(
+    mean_grads: Dict[int, List[float]]
+) -> Dict[int, np.ndarray]:
+    """Stacks the mean gradients.
+    Args:
+        mean_grads (t.Dict[int, t.List[float]]): Mean gradients.
+    Returns:
+        t.Dict[int, np.ndarray]: Stacked mean gradients.
+    """
+    return np.stack(list(mean_grads.values())).T
+
+
+def get_batch(
+    feature_matrix: np.ndarray, targets: np.ndarray, batch_size: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Returns a batch of the feature matrix and targets.
+    Args:
+        feature_matrix (np.ndarray): Transposed feature matrix.
+        targets (np.ndarray): Transposed targets.
+    Returns:
+        t.Tuple[np.ndarray, np.ndarray]: Batch of the feature matrix and targets.
+    """
+    for i in range(0, feature_matrix.shape[1], batch_size):
+        yield feature_matrix[:, i : i + batch_size], targets[:, i : i + batch_size]
+
+
+def plot_training_history(
+    train_history: OrderedDict,
+    plot_by_epoch: bool = False,
+    train_len: int = None,
+    savefig: bool = False,
+    figname: str = "model_history",
+) -> None:
+    """Plots the training history.
+    Args:
+        train_history (OrderedDict): Training history.
+        savefig (bool, optional): Whether to save the figure. Defaults to False.
+        figname (str, optional): Figure name. Defaults to 'model_history'.
+    """
+
+    # Unzip items
+    iters, loss, weight_grads, bias_grads = zip(
+        *[
+            (k, v["loss"], v["weight_grads"], v["bias_grads"])
+            for k, v in train_history.items()
+        ]
+    )
+
+    # Get mean loss
+    mean_loss = [np.mean(loss_i) for loss_i in loss]
+
+    # Unstack gradients
+    _, weight_layer_mean_grads = unstack_grads(weight_grads)
+    _, bias_layer_mean_grads = unstack_grads(bias_grads)
+
+    include_bias = any(bias_grads)
+
+    # Stack mean gradients
+    weight_stacked_mean_grads = stack_mean_gradients(weight_layer_mean_grads)
+    if include_bias:
+        bias_stacked_mean_grads = stack_mean_gradients(bias_layer_mean_grads)
+
+    xlabel = 'Iteration'
+    if plot_by_epoch:
+        mean_loss = np.array(mean_loss).reshape(-1, 1)
+        print(mean_loss.shape)
+        weight_stacked_mean_grads, mean_loss = zip(*[
+            (np.mean(grad_batch, axis=1), np.mean(loss_batch, axis=1))
+            for grad_batch, loss_batch in get_batch(weight_stacked_mean_grads.T, mean_loss.T, train_len)
+        ])
+        iters = list(range(len(mean_loss)))
+        xlabel = 'Epoch'
+        if include_bias:
+            bias_stacked_mean_grads = [
+                np.mean(grad_batch)
+                for grad_batch, _ in get_batch(bias_stacked_mean_grads.T, bias_stacked_mean_grads.T, train_len)
+            ]
+
+    if include_bias:
+        _, (ax0, ax1, ax2) = plt.subplots(1, 3, figsize=(15, 3))
+    else:
+        _, (ax0, ax1) = plt.subplots(1, 2, figsize=(10, 3))
+
+    ax0.plot(iters, mean_loss)
+    ax0.set_title("Loss")
+    ax0.set_xlabel(xlabel)
+    ax0.set_ylabel("Loss")
+
+    ax1.plot(iters, weight_stacked_mean_grads)
+    ax1.set_title("Mean weight gradients")
+    ax1.legend([f"Layer {i}" for i in range(len(weight_stacked_mean_grads[0]))])
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel("Mean gradient")
+
+    if include_bias:
+        ax2.plot(iters, bias_stacked_mean_grads)
+        ax2.set_title("Mean bias gradients")
+        ax2.legend([f"Layer {i}" for i in range(len(bias_stacked_mean_grads[0]))])
+        ax2.set_xlabel(xlabel)
+        ax2.set_ylabel("Mean gradient")
+
+    plt.tight_layout()
+    if savefig:
+        plt.savefig(f"{figname}.png")
+    plt.show()

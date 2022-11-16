@@ -1,4 +1,5 @@
 jupyter
+anfis
 cycler==0.11.0
 openpyxl==3.0.10
 pandas==1.3.5
