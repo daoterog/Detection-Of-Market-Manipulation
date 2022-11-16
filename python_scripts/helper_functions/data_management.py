@@ -139,6 +139,65 @@ def assign_labels(
 
     return feature_matrix, None
 
+def get_modulus_matrix(stock_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Builds a modulus matrix where each row correspond to the time coefficients
+    associated to a frequency.
+
+    Args:
+        stock_matrix (np.ndarray): Matrix with data.
+
+    Returns:
+        Modulus matrix and frequencies array.
+    """
+
+    stock_copy = stock_matrix.copy()
+
+    # Remove cone of influence
+    stock_copy = np.delete(stock_copy, 0, axis=0)
+
+    # Get frequencies and remove them from matrix
+    frequencies = stock_copy[:, -1].astype(float)
+    stock_copy = np.delete(stock_copy, -1, axis=1)
+
+    # Convert coefficients into complex dtype
+    stock_array = stock_copy.astype(str)
+    stock_array = np.char.replace(stock_array, "i", "j")
+    stock_array = np.char.replace(stock_array, " ", "")
+    stock_array = stock_array.astype(np.complex128)
+
+    # Get real and imaginary coefficients
+    real_coefficients = np.real(stock_array)
+    imag_coefficients = np.imag(stock_array)
+
+    # Get complex modulus
+    modulus_matrix = np.sqrt(np.power(real_coefficients, 2) + np.power(imag_coefficients, 2))
+
+    return modulus_matrix, frequencies
+
+
+def modulus_loading(manip_category: str) -> Dict[str, Dict[str, np.ndarray]]:
+    """
+    Returns a dictionary with the modulus matrices for each stock.
+
+    Args:
+        manip_category: Category of manipulation.
+    """
+
+    # Get data folder path
+    root_folder_path = os.getcwd()
+    manip_folder_path = os.path.join(root_folder_path, "data", manip_category)
+
+    # Load raw data
+    stocks_dict = load_excel_data(manip_folder_path)
+
+    # Preprocess data
+    stocks_modulus = {}
+    for stock_name, stock_matrix in stocks_dict.items():
+        modulus_matrix, frequencies = get_modulus_matrix(stock_matrix)
+        stocks_modulus[stock_name] = {"modulus": modulus_matrix, "frequencies": frequencies}
+
+    return stocks_modulus
+
 
 def data_loading(
     manip_category: str,
@@ -156,7 +215,7 @@ def data_loading(
     """
 
     # Get data folder path
-    root_folder_path = os.path.dirname(os.getcwd())
+    root_folder_path = os.getcwd()
     manip_folder_path = os.path.join(root_folder_path, "data", manip_category)
 
     # Load raw data

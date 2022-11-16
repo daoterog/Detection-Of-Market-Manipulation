@@ -81,8 +81,8 @@ def evaluate_early_stopping_criteria(
     """
 
     # Evaluate Loss convergence
-    if np.mean(loss_list) <= 1e-2:
-        return True, "Loss converged"
+    if np.mean(loss_list) <= 1e-6:
+        return True, "Loss converged", None
     # Evaluate Gradient convergence
     weight_diff_grads.append(get_mean_epoch_gradient(weight_grad_list))
     if not any(bias_grad_list):
@@ -113,7 +113,7 @@ def train_model(
     model: NeuralNetwork,
     feature_matrix: np.ndarray,
     targets: np.ndarray,
-    n_iter: int,
+    num_epochs: int,
     batch_size: int,
     verbose: bool = False,
 ) -> t.Tuple[NeuralNetwork, OrderedDict, int, str]:
@@ -129,12 +129,12 @@ def train_model(
         t.Tuple[NeuralNetwork, OrderedDict, int, str]: Trained model, training history, epoch in
             which the algorithm stopped, and reason for stopping.
     """
-    num_epochs = int(np.floor(n_iter / (feature_matrix.shape[0] / batch_size)))
     train_history = OrderedDict()
     iter_num = 0
     weight_diff_grads = []
     bias_diff_grads = []
     previous = False
+    stop_criterion = None
     for epoch in range(num_epochs):
         loss_list = []
         weight_grad_list = []
@@ -179,6 +179,8 @@ def train_model(
                                                                         bias_diff_grads,
                                                                         previous)
         if stop:
+            print("Stopping...")
+            print("Stopping Criterion: ", stop_criterion)
             break
 
     if stop_criterion is None:
