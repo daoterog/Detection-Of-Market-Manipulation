@@ -113,19 +113,6 @@ class KMeans(BaseEstimator, ClusterMixin):
         # Initialize k cluster centers with random points
         self.centers_ = np.random.permutation(feature_matrix)[: self.number_of_clusters]
 
-    def _parallel_assign_datapoints(self, idx: int, datapoint: np.ndarray) -> None:
-        """Assigns datapoints to clusters.
-        Args:
-            idx (int): Index of datapoint.
-            datapoint (np.ndarray): Datapoint.
-        """
-        # Get distance to clusters
-        distance_to_centers = self.distance_criterion(
-            self.centers_, datapoint.reshape(1, -1)
-        )
-        # Assign data point to closest cluster
-        self.assignments_[idx] = np.argmin(distance_to_centers)
-
     def _assign_datapoints(self, feature_matrix: np.ndarray) -> None:
         """Assigns datapoints to clusters.
         Args:
@@ -353,7 +340,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
 
         self.n_features_in_ = None
         self.cluster_centers_ = None
-        self.cluster_mountain_functions_ = None
+        self.centers_mountain_functions_ = None
         self.assignments_ = None
         self.mountains_snap_shots_ = None
 
@@ -434,7 +421,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
         )
         return (
             mountain_function
-            - self.cluster_mountain_functions_[-1].item() * scaling_factor
+            - self.centers_mountain_functions_[-1].item() * scaling_factor
         )
 
     def _update_centers(
@@ -450,7 +437,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
             self.cluster_centers_ = np.array(prototypes[maximum_index, :]).reshape(
                 1, -1
             )
-            self.cluster_mountain_functions_ = np.array(
+            self.centers_mountain_functions_ = np.array(
                 mountain_functions[maximum_index]
             ).reshape(1, -1)
             self.mountains_snap_shots_ = [mountain_functions]
@@ -458,8 +445,8 @@ class MountainClustering(BaseEstimator, ClusterMixin):
             self.cluster_centers_ = np.vstack(
                 [self.cluster_centers_, prototypes[maximum_index, :]]
             )
-            self.cluster_mountain_functions_ = np.append(
-                self.cluster_mountain_functions_, [mountain_functions[maximum_index]]
+            self.centers_mountain_functions_ = np.append(
+                self.centers_mountain_functions_, [mountain_functions[maximum_index]]
             )
             self.mountains_snap_shots_.append(mountain_functions)
 
