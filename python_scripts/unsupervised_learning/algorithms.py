@@ -339,7 +339,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
 
         self.n_features_in_ = None
-        self.cluster_centers_ = None
+        self.centers_ = None
         self.centers_mountain_functions_ = None
         self.assignments_ = None
         self.mountains_snap_shots_ = None
@@ -411,7 +411,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
         scaling_factor = (
             np.exp(
                 -np.power(
-                    self.distance_criterion(prototype, self.cluster_centers_[-1]),
+                    self.distance_criterion(prototype, self.centers_[-1]),
                     2,
                 )
                 / (2 * self.beta_squared)
@@ -433,8 +433,8 @@ class MountainClustering(BaseEstimator, ClusterMixin):
             prototypes (np.ndarray): Prototypes.
         """
         maximum_index = np.argmax(mountain_functions)
-        if self.cluster_centers_ is None:
-            self.cluster_centers_ = np.array(prototypes[maximum_index, :]).reshape(
+        if self.centers_ is None:
+            self.centers_ = np.array(prototypes[maximum_index, :]).reshape(
                 1, -1
             )
             self.centers_mountain_functions_ = np.array(
@@ -442,8 +442,8 @@ class MountainClustering(BaseEstimator, ClusterMixin):
             ).reshape(1, -1)
             self.mountains_snap_shots_ = [mountain_functions]
         else:
-            self.cluster_centers_ = np.vstack(
-                [self.cluster_centers_, prototypes[maximum_index, :]]
+            self.centers_ = np.vstack(
+                [self.centers_, prototypes[maximum_index, :]]
             )
             self.centers_mountain_functions_ = np.append(
                 self.centers_mountain_functions_, [mountain_functions[maximum_index]]
@@ -459,7 +459,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
         for idx, datapoint in enumerate(feature_matrix):
             # Get distance to clusters
             distance_to_centers = self.distance_criterion(
-                self.cluster_centers_, datapoint
+                self.centers_, datapoint
             )
             # Update membership matrix
             self.assignments_[idx, 0] = np.argmin(distance_to_centers)
@@ -526,7 +526,7 @@ class SubstractiveClustering(BaseEstimator, ClusterMixin):
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
 
         self.n_features_in_ = None
-        self.cluster_centers_ = None
+        self.centers_ = None
         self.centers_densities_ = None
         self.assignments_ = None
         self.mountains_snap_shots_ = None
@@ -569,15 +569,15 @@ class SubstractiveClustering(BaseEstimator, ClusterMixin):
             densities (np.ndarray): Densities.
         """
         maximum_index = np.argmax(densities)
-        if self.cluster_centers_ is None:
-            self.cluster_centers_ = np.array(feature_matrix[maximum_index, :]).reshape(
+        if self.centers_ is None:
+            self.centers_ = np.array(feature_matrix[maximum_index, :]).reshape(
                 1, -1
             )
             self.centers_densities_ = np.array(densities[maximum_index]).reshape(1, -1)
             self.mountains_snap_shots_ = [densities]
         else:
-            self.cluster_centers_ = np.vstack(
-                [self.cluster_centers_, feature_matrix[maximum_index, :]]
+            self.centers_ = np.vstack(
+                [self.centers_, feature_matrix[maximum_index, :]]
             )
             self.centers_densities_ = np.append(
                 self.centers_densities_, [densities[maximum_index]]
@@ -596,7 +596,7 @@ class SubstractiveClustering(BaseEstimator, ClusterMixin):
             np.exp(
                 -np.power(
                     self.distance_criterion(
-                        prototype, self.cluster_centers_[-1].reshape(1, -1)
+                        prototype, self.centers_[-1].reshape(1, -1)
                     ),
                     2,
                 )
@@ -690,7 +690,7 @@ class GaussianMixture(BaseEstimator, ClusterMixin):
         self.verbose = verbose
 
         self.n_features_in_ = None
-        self.cluster_centers_ = None
+        self.centers_ = None
         self.cluster_variances_ = None
         self.probabilities_ = None
 
@@ -700,7 +700,7 @@ class GaussianMixture(BaseEstimator, ClusterMixin):
             feature_matrix (np.ndarray): Feature matrix.
         """
         self.n_features_in_ = feature_matrix.shape[1]
-        self.cluster_centers_ = np.random.permutation(feature_matrix)[
+        self.centers_ = np.random.permutation(feature_matrix)[
             : self.number_of_clusters
         ]
         self.cluster_variances_ = [
@@ -722,7 +722,7 @@ class GaussianMixture(BaseEstimator, ClusterMixin):
                         cov=cluster_variance,
                     )
                     for cluster_center, cluster_variance in zip(
-                        self.cluster_centers_, self.cluster_variances_
+                        self.centers_, self.cluster_variances_
                     )
                 ]
                 for datapoint in feature_matrix
@@ -736,12 +736,12 @@ class GaussianMixture(BaseEstimator, ClusterMixin):
             feature_matrix (np.ndarray): Feature matrix.
         """
         # Update cluster centers by weighted sum of datapoints and probabilities
-        self.cluster_centers_ = (
+        self.centers_ = (
             np.dot(self.probabilities_.T, feature_matrix)
             / np.sum(self.probabilities_, axis=0, keepdims=True).T
         )
         # Update cluster variances by weighted sum of squared errors and probabilities
-        for cluster, center in enumerate(self.cluster_centers_):
+        for cluster, center in enumerate(self.centers_):
             centered_feature_matrix = feature_matrix - center.reshape(1, -1)
             self.cluster_variances_[cluster] = (
                 np.dot(centered_feature_matrix.T, centered_feature_matrix)
