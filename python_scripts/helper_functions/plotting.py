@@ -332,7 +332,6 @@ def plot_training_history(
     xlabel = 'Iteration'
     if plot_by_epoch:
         mean_loss = np.array(mean_loss).reshape(-1, 1)
-        print(mean_loss.shape)
         weight_stacked_mean_grads, mean_loss = zip(*[
             (np.mean(grad_batch, axis=1), np.mean(loss_batch, axis=1))
             for grad_batch, loss_batch in get_batch(weight_stacked_mean_grads.T, mean_loss.T, train_len)
@@ -341,7 +340,7 @@ def plot_training_history(
         xlabel = 'Epoch'
         if include_bias:
             bias_stacked_mean_grads = [
-                np.mean(grad_batch)
+                np.mean(grad_batch, axis=1)
                 for grad_batch, _ in get_batch(bias_stacked_mean_grads.T, bias_stacked_mean_grads.T, train_len)
             ]
 
