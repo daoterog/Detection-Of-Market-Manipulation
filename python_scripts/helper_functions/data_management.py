@@ -200,6 +200,7 @@ def modulus_loading(manip_category: str) -> Dict[str, Dict[str, np.ndarray]]:
 
 
 def data_loading(
+    root_folder_path: str,
     manip_category: str,
     energy_threshold: float,
     use_cone: bool,
@@ -214,8 +215,6 @@ def data_loading(
             category.
     """
 
-    # Get data folder path
-    root_folder_path = os.getcwd()
     manip_folder_path = os.path.join(root_folder_path, "data", manip_category)
 
     # Load raw data
