@@ -95,6 +95,7 @@ class KMeans(BaseEstimator, ClusterMixin):
         self.number_of_clusters = number_of_clusters
         self.max_iters = n_iter
         self.verbose = verbose
+        self.distance_metric = distance_metric
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
 
         self.n_features_in_ = None
@@ -203,6 +204,7 @@ class FuzzCMeans(BaseEstimator, ClusterMixin):
         self.number_of_clusters = number_of_clusters
         self.max_iters = n_iter
         self.verbose = verbose
+        self.distance_metric = distance_metric
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
         self.fuzzines_parameter = fuzzines_parameter
 
@@ -336,6 +338,7 @@ class MountainClustering(BaseEstimator, ClusterMixin):
         self.number_of_partitions = number_of_partitions
         self.sigma_squared = sigma_squared
         self.beta_squared = beta_squared
+        self.distance_metric = distance_metric
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
 
         self.n_features_in_ = None
@@ -523,6 +526,7 @@ class SubstractiveClustering(BaseEstimator, ClusterMixin):
         """
         self.r_a = r_a
         self.r_b = r_b
+        self.distance_metric = distance_metric
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
 
         self.n_features_in_ = None
