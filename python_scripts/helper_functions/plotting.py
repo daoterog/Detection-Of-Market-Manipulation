@@ -371,3 +371,37 @@ def plot_training_history(
     if savefig:
         plt.savefig(f"{figname}.png")
     plt.show()
+
+
+def plot_embedding(feature_matrix: np.ndarray, title: str, hue_modulus: bool):
+    """Plots autoencoder embadding in 3d.
+    Args:
+        feature_matrix: matrix with 3 features, complex modulus, and target variable, in this
+            exact order.
+        title: of the plot
+        hue_modulus: wether to use the modulus or the target variable to color the scatter plot.
+    """
+
+    if hue_modulus:
+        target = feature_matrix[:, -2]
+    else:
+        target = feature_matrix[:, -1]
+
+    if feature_matrix.shape[1] == 4:
+        fig = px.scatter(x=feature_matrix[:, 0], y=feature_matrix[:, 1], color=target)
+    else:
+        fig = px.scatter_3d(
+            x=feature_matrix[:, 0], y=feature_matrix[:, 1], z=feature_matrix[:, 2], color=target
+        )
+
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        title={
+            "text": title,
+            "y": 0.95,
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+        },
+    )
+    fig.show()
