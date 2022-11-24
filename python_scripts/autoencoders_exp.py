@@ -1,3 +1,6 @@
+"""Experimentation Module for Autoencoder creation"""
+
+import os
 from mynn.neural_network import NeuralNetwork
 from mynn.layers import Layer
 from mynn.utils import train_model
@@ -9,8 +12,8 @@ def create_autoencoder(num_features: int, num_hidden_units: int):
 
     autoenconder = NeuralNetwork(
         layers=[
-            Layer(num_features, num_hidden_units, activation="sigmoid"),
-            Layer(num_hidden_units, num_features, activation="sigmoid"),
+            Layer(num_features, num_hidden_units, activation="sigmoid", include_bias=True),
+            Layer(num_hidden_units, num_features, activation="sigmoid", include_bias=True),
         ],
         learning_rate=0.1,
         loss="cuadratic",
@@ -22,7 +25,7 @@ def create_autoencoder(num_features: int, num_hidden_units: int):
 def main():
 
     manip_category = "pump_and_dump"
-    stock_name = "srpt"
+    stock_name = "amc"
 
     manip_features = modulus_loading(manip_category)
 
