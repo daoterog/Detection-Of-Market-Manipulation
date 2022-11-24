@@ -93,7 +93,7 @@ class KMeans(BaseEstimator, ClusterMixin):
             verbose (bool): Verbose. Defaults to False.
         """
         self.number_of_clusters = number_of_clusters
-        self.max_iters = n_iter
+        self.n_iter = n_iter
         self.verbose = verbose
         self.distance_metric = distance_metric
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
@@ -164,7 +164,7 @@ class KMeans(BaseEstimator, ClusterMixin):
         # Initialize variables
         self._initialize_variables(feature_matrix)
         # Repeat for max_iter iterations
-        for _ in range(self.max_iters):
+        for _ in range(self.n_iter):
             # Assign data points to clusters
             self._assign_datapoints(feature_matrix)
             # Update cluster centers
@@ -202,7 +202,7 @@ class FuzzCMeans(BaseEstimator, ClusterMixin):
             verbose (bool): Verbose. Defaults to False.
         """
         self.number_of_clusters = number_of_clusters
-        self.max_iters = n_iter
+        self.n_iter = n_iter
         self.verbose = verbose
         self.distance_metric = distance_metric
         self.distance_criterion = DistanceMetric(distance_metric).get_distance
@@ -298,7 +298,7 @@ class FuzzCMeans(BaseEstimator, ClusterMixin):
         # Initialize parameters
         self._initialize_variables(feature_matrix)
         # Repeat for max_iter iterations
-        for _ in range(self.max_iters):
+        for _ in range(self.n_iter):
             # Get cluster centers
             self._update_cluster_centers(feature_matrix)
             # Update membership matrix
